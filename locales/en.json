@@ -770,6 +770,7 @@
   {"id": "apply_verdict_unknown", "translation": "cannot tell"},
   {"id": "reach_no_address", "translation": "The address this request came from could not be read, so nothing can be said about it."},
   {"id": "reach_proxied", "translation": "The request came through a proxy. That is its address, not yours."},
+  {"id": "reach_trusted_proxy", "translation": "You came through a trusted proxy. The address is yours, but the port your browser reaches is the proxy's, and that is not visible from here."},
   {"id": "reach_loopback", "translation": "You are connected over the loopback interface, which is accepted before any rule is consulted."},
   {"id": "reach_ipv6_passthrough", "translation": "IPv6 is set to passthrough, so all IPv6 traffic is accepted before any rule is consulted."},
   {"id": "reach_ipv6_blocked", "translation": "IPv6 is set to block, so all IPv6 traffic is dropped before any rule is consulted."},

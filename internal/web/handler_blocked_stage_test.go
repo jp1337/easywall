@@ -76,24 +76,30 @@ func TestStageRefusesToBlocklistTheOperator(t *testing.T) {
 	}
 }
 
-// The verdict half of the guard, isolated: behind a trusted proxy the operator
-// is 198.51.100.7 and the peer is the proxy, so blocklisting the operator's own
-// address flips the verdict while the peer check sees nothing.
-func TestStageRefusesWhenTheVerdictFlips(t *testing.T) {
-	s, got, _ := stageCore(t, open19999)
-	s.cfg.TrustedProxies = []string{"192.0.2.1"}
-	rec := postStage(t, s, url.Values{"act": {"blocklist"}, "addr": {"198.51.100.7"}}, "192.0.2.1", "198.51.100.7")
-	if got.called {
-		t.Fatal("blocklisting the operator's resolved address was staged")
-	}
-	if f := flashOf(t, s, rec); f != "blocked_refused_lockout" {
-		t.Errorf("flash = %q, want blocked_refused_lockout", f)
+// The client half of the guard, isolated: behind a trusted proxy the operator
+// is 198.51.100.7 and the peer is the proxy. There is no verdict to flip — the
+// port is the proxy's — so the port-free blocklist check refuses, while the
+// peer check sees nothing. Twice: with easywall's own port open, and with only
+// the proxy's 443 open, where the old webPort verdict read "blocked" before
+// and after and let the click through.
+func TestStageRefusesToBlocklistTheProxiedOperator(t *testing.T) {
+	for name, open := range map[string]string{"own port open": "19999", "only 443 open": "443"} {
+		t.Run(name, func(t *testing.T) {
+			s, got, _ := stageCore(t, shared.Rules{TCP: []shared.PortRule{{Port: open}}})
+			s.cfg.TrustedProxies = []string{"192.0.2.1"}
+			rec := postStage(t, s, url.Values{"act": {"blocklist"}, "addr": {"198.51.100.7"}}, "192.0.2.1", "198.51.100.7")
+			if got.called {
+				t.Fatal("blocklisting the operator's resolved address was staged")
+			}
+			if f := flashOf(t, s, rec); f != "blocked_refused_lockout" {
+				t.Errorf("flash = %q, want blocked_refused_lockout", f)
+			}
+		})
 	}
 }
 
-// The proxy half, isolated: the address in the log is the proxy's. The verdict
-// about the operator (198.51.100.7) stays open — the confident answer about the
-// wrong host the spec warns of — and only the peer check refuses.
+// The proxy half, isolated: the address in the log is the proxy's. Nothing
+// about the operator (198.51.100.7) refuses it, and only the peer check does.
 func TestStageRefusesToBlocklistTheProxy(t *testing.T) {
 	s, got, _ := stageCore(t, open19999)
 	s.cfg.TrustedProxies = []string{"192.0.2.1"}

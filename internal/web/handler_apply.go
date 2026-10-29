@@ -251,8 +251,9 @@ func (s *Server) reachVerdict(r *http.Request, staged shared.Rules,
 // lockoutRefusal can do it once and ask s.feedHits once for both verdicts it
 // compares, instead of paying for GET_FEEDS twice for the same address.
 //
-// verdict is non-nil only when resolution failed; addr, port and proxied are
-// then meaningless and the caller must return it as-is.
+// verdict is non-nil only when no verdict can be computed; the caller must
+// return it as-is. addr is then meaningless — except for trusted_proxy, where
+// it is the client the proxy named, for lockoutRefusal's port-free question.
 func (s *Server) requestAddrAndPort(r *http.Request) (addr netip.Addr, port uint16, proxied bool, verdict *applyVerdict) {
 	rawAddr, proxied := s.clientAddr(r)
 	addr, err := netip.ParseAddr(rawAddr)
@@ -264,6 +265,19 @@ func (s *Server) requestAddrAndPort(r *http.Request) (addr netip.Addr, port uint
 		slog.Warn("cannot read the peer address, so the verdict is reach_no_address",
 			"remote_addr", r.RemoteAddr, "error", err)
 		return netip.Addr{}, 0, proxied, &applyVerdict{Verdict: shared.ReachUnknown, Reason: shared.ReasonNoAddress, Addr: rawAddr}
+	}
+	// A trusted proxy named the client. Its address is right, but the port is
+	// not: the client's SYN goes to the proxy — :443 in reverse-proxy.md's
+	// nginx — and webPort is the port the proxy forwards to, which a remote
+	// proxy's clients never reach on this host at all. Until this, the verdict
+	// was computed for webPort anyway: only 443 open said "blocks new
+	// connections", only webPort open said "reachable" to an operator the
+	// apply was cutting off. Nothing on the request says which port or which
+	// host, so the answer is the one this page gives an untrusted proxy.
+	if !proxied {
+		if peer, err := netip.ParseAddr(peerIP(r)); err == nil && shared.InAnyEntry(peer.Unmap(), s.cfg.TrustedProxies) {
+			return addr.Unmap().WithZone(""), 0, proxied, &applyVerdict{Verdict: shared.ReachUnknown, Reason: shared.ReasonTrustedProxy, Addr: addr.String()}
+		}
 	}
 	rawPort := s.webPort()
 	parsedPort, err := strconv.ParseUint(rawPort, 10, 16)

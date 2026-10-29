@@ -542,6 +542,11 @@ func (s *Server) Stop() {
 	}
 }
 
+// legacyListPaths are the pre-2.23 list addresses and the page each became.
+// One table for the alias routes and their body limit, so the two cannot
+// disagree about which paths are aliases.
+var legacyListPaths = map[string]string{"/blacklist": "/blocklist", "/whitelist": "/allowlist"}
+
 func (s *Server) buildRouter(cfg *Config) chi.Router {
 	r := chi.NewRouter()
 
@@ -558,7 +563,7 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 	// docs-tech/threat-model.md for why the setting is a list and never a flag.
 	r.Use(middleware.Recoverer)
 	r.Use(SecurityHeaders)
-	r.Use(MaxBodySize(64*1024, map[string]int64{
+	bodyLimits := map[string]int64{
 		"/import": maxImportBytes,
 		// Every editor an imported list lands in, so what /import accepts can
 		// be saved back — see maxListFormBytes.
@@ -569,7 +574,15 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		"/iplist/validate": maxListFormBytes,
 		"/custom":          maxListFormBytes,
 		"/custom/validate": maxListFormBytes,
-	}))
+	}
+	// An alias takes its page's limit from here rather than an entry of its
+	// own. Until this, /blacklist and /whitelist were missing from the map and
+	// kept the site-wide 64 KiB, so the old tab the aliases exist for got a
+	// 413 on any list over that size while /blocklist saved it.
+	for old, now := range legacyListPaths {
+		bodyLimits[old] = bodyLimits[now]
+	}
+	r.Use(MaxBodySize(64*1024, bodyLimits))
 
 	// CSRF protection via Go 1.25 net/http.CrossOriginProtection (Origin/Sec-Fetch-Site header check)
 	cop := http.NewCrossOriginProtection()
@@ -666,10 +679,11 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		// easywall before the rename. A GET moves permanently. A POST is saved,
 		// not redirected — a tab left open across the upgrade still posts its
 		// form here, and a 301 turns a POST into a GET that drops the list.
-		r.Get("/blacklist", http.RedirectHandler("/blocklist", http.StatusMovedPermanently).ServeHTTP)
-		r.Post("/blacklist", s.handleBlocklistPOST)
-		r.Get("/whitelist", http.RedirectHandler("/allowlist", http.StatusMovedPermanently).ServeHTTP)
-		r.Post("/whitelist", s.handleAllowlistPOST)
+		listPOST := map[string]http.HandlerFunc{"/blocklist": s.handleBlocklistPOST, "/allowlist": s.handleAllowlistPOST}
+		for old, now := range legacyListPaths {
+			r.Get(old, http.RedirectHandler(now, http.StatusMovedPermanently).ServeHTTP)
+			r.Post(old, listPOST[now])
+		}
 
 		// Shared HTMX validation endpoint for both blocklist and allowlist.
 		r.Post("/iplist/validate", s.handleIPListValidate)

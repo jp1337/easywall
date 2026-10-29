@@ -64,7 +64,7 @@ working. So this page can go on answering while the firewall admits nobody new.
 Confirming from it would confirm a lockout — open a second connection and check
 there, exactly as step 2 says.
 
-*Cannot tell* is not a hedge. Three things are not knowable from the web
+*Cannot tell* is not a hedge. Four things are not knowable from the web
 interface, and each says so in its own words rather than guessing:
 
 - The bogon filter matches on which interface a packet arrives at, and nothing
@@ -73,6 +73,9 @@ interface, and each says so in its own words rather than guessing:
   which is also not knowable from here. A network you named yourself in the
   Docker settings is different, and gets a plain **reachable**.
 - Custom rules are raw nftables and are appended after everything else.
+- Behind a [trusted proxy]({{ '/docs/installation/reverse-proxy/' | relative_url }}),
+  your browser reaches the proxy's port, not this interface's, and the request
+  does not say which.
 
 A wrong *blocks new connections* would cost the trust the true one needs.
 

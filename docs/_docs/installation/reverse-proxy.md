@@ -15,8 +15,11 @@ request now arrives from the proxy. That has three consequences:
 - the login limiter's five attempts per ten minutes are shared by everybody
   behind it
 
-Listing the proxy in `trusted_proxies` fixes all three. Getting the list wrong
-hands address spoofing to anything that can reach the port.
+Listing the proxy in `trusted_proxies` fixes the first and the last. The apply
+screen still says *cannot tell*: it then knows your address, but your browser
+reaches the proxy's port, not easywall's, and no request says which port or
+which host. Check from a second connection, as the apply step says. Getting the
+list wrong hands address spoofing to anything that can reach the port.
 
 ## 1 · Point nginx at easywall
 
@@ -125,7 +128,7 @@ limiter. The password-plus-TOTP factor is unaffected either way.
 |---|---|
 | The audit log records the proxy | The peer is not on `trusted_proxies`, or nginx sends no `X-Forwarded-For` |
 | easywall refuses to start | An entry that is neither an address nor a CIDR network. The message names it |
-| The lockout warning on Apply is wrong | Same cause: the verdict is computed for the address easywall resolved |
+| Apply's lockout line says *cannot tell* | Expected behind a proxy: the port your browser reaches is the proxy's |
 | It worked, then stopped | A container was recreated and took a new address. Fix the address, not the list |
 | The passkey card is enabled but every ceremony fails | The origin mismatch above — see *Passkeys do not work through this* |
 

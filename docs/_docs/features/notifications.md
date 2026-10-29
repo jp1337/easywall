@@ -61,7 +61,9 @@ message is worth the same as easywall refusing that address. The same count, not
 the same moment: the limiter is a token bucket that refills, and this is a fixed
 five-minute window. Five failures spread over four minutes notify while the limiter
 still has tokens. The address then stays quiet for fifteen minutes, because the
-second hour of one attack is not news. Every other address keeps its own count.
+second hour of one attack is not news. Every other address keeps its own count;
+an IPv6 address counts with its /64, the unit the limiter refuses, and the
+message names the /64.
 
 ## Prove it arrives
 
