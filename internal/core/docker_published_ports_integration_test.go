@@ -268,3 +268,66 @@ func TestIntegration_IPv6PublishedPortsAreRead(t *testing.T) {
 		}
 	}
 }
+
+// dockerNativeFixture writes what Docker's native nftables backend
+// (firewall-backend=nftables) writes: its own table, `docker-bridges`, in both
+// families, and plain DNAT rules in a regular chain. The rule lines are
+// moby's own golden output, copied verbatim from
+// daemon/libnetwork/drivers/bridge/internal/nftabler/testdata/TestNftabler/
+// hairpin=false,internal=false,icc=false,masq=true,snat=false,gwm=nat,bindlh=false__ip{,6}.golden
+// at moby 9f07d9222f42, plus one host-address binding in setPerPortDNAT's
+// `ip daddr` form. The table name is nftabler.go's dockerTable constant.
+func dockerNativeFixture(t *testing.T) {
+	t.Helper()
+	const ruleset = `
+table ip docker-bridges {
+	chain nat-prerouting-and-output {
+		iifname != "br-dummy" tcp dport 8080 counter packets 0 bytes 0 dnat to 192.168.0.2:80 comment "DNAT"
+		iifname != "br-dummy" ip daddr 192.0.2.10 udp dport 53 counter packets 0 bytes 0 dnat to 192.168.0.3:53 comment "DNAT"
+	}
+}
+table ip6 docker-bridges {
+	chain nat-prerouting-and-output {
+		iifname != "br-dummy" ip6 saddr != fe80::/10 tcp dport 8080 counter packets 0 bytes 0 dnat to [fd49:efd7:54aa::1]:80 comment "DNAT"
+	}
+}
+`
+	cmd := exec.Command("nft", "-f", "-")
+	cmd.Stdin = strings.NewReader(ruleset)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		skipOrFailUnprovable(t, "the docker-bridges tables could not be written: "+err.Error()+": "+string(out))
+	}
+	t.Cleanup(func() {
+		_ = exec.Command("nft", "delete", "table", "ip", "docker-bridges").Run()
+		_ = exec.Command("nft", "delete", "table", "ip6", "docker-bridges").Run()
+	})
+}
+
+// Docker's native nftables backend names its table docker-bridges, in ip and
+// ip6. The lookup used to name `docker`, a table no Docker writes, so under
+// that backend the published-port warning read no DNAT rule at all and stayed
+// silent about every published port — silence that looks like the answer.
+func TestIntegration_DockersNativeNftablesRulesAreRead(t *testing.T) {
+	dockerNativeFixture(t)
+
+	got := detectPublishedPorts([]string{"192.168.0.0/24", "fd49:efd7:54aa::/64"}, 0)
+	want := map[string]bool{
+		"tcp 8080 on 0.0.0.0 -> 80":  false,
+		"udp 53 on 192.0.2.10 -> 53": false,
+		"tcp 8080 on :: -> 80":       false,
+	}
+	for _, p := range got {
+		key := p.proto + " " + strconv.Itoa(int(p.port)) + " on " + p.addr +
+			" -> " + strconv.Itoa(int(p.containerPort))
+		if _, expected := want[key]; !expected {
+			t.Errorf("reported %s, which the fixture did not publish", key)
+			continue
+		}
+		want[key] = true
+	}
+	for key, found := range want {
+		if !found {
+			t.Errorf("%s is in Docker's native nftables rules and was not read; got %v", key, got)
+		}
+	}
+}

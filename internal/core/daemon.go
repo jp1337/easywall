@@ -39,6 +39,11 @@ type Daemon struct {
 	// races the write.
 	mu       sync.Mutex
 	listener net.Listener
+	// peerWait holds the connections that are blocked on their peer — reading
+	// its request or writing it the reply — so Stop can close them rather than
+	// wait for them. Guarded by mu. Not the ones in dispatch: those are doing
+	// work the client is owed an answer for.
+	peerWait map[net.Conn]struct{}
 
 	// login folds bursts of stranger-triggerable login events into two lines.
 	// Built on first use so a Daemon constructed by hand in a test still records.
@@ -67,6 +72,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	if err := os.MkdirAll(cfg.LogDir, 0750); err != nil {
 		return nil, fmt.Errorf("create log dir: %w", err)
 	}
+	tightenAuditLog(cfg.AuditLogPath())
 
 	fw, err := NewFirewall(cfg)
 	if err != nil {
@@ -351,9 +357,22 @@ func (d *Daemon) Start() error {
 		}()
 	}
 
+	// At most maxConns connections are served at once; the next waits in the
+	// listen backlog until one ends. This loop used to accept without limit,
+	// and each served connection can hold MaxMessageBytes of request: 32 clients
+	// each sending 8 MiB−1 and never closing took the heap from 4 MiB to
+	// 286 MiB. Queued rather than refused, so a burst from the web process waits
+	// milliseconds instead of failing.
+	slots := make(chan struct{}, maxConns)
 	for {
+		select {
+		case slots <- struct{}{}:
+		case <-d.quit:
+			return nil
+		}
 		conn, err := ln.Accept()
 		if err != nil {
+			<-slots
 			select {
 			case <-d.quit:
 				return nil
@@ -372,11 +391,13 @@ func (d *Daemon) Start() error {
 		// which Accept fails into the quit branch above and the loop returns —
 		// so it is not a spin, but it is not one connection either.
 		if !d.track() {
+			<-slots
 			_ = conn.Close()
 			continue
 		}
 		go func() {
 			defer d.wg.Done()
+			defer func() { <-slots }()
 			d.handleConn(conn)
 		}()
 	}
@@ -540,7 +561,15 @@ func (d *Daemon) Stop() {
 		_ = ln.Close()
 	}
 
+	// Close every connection that is waiting on its peer. They used to be
+	// waited for like any other work: one client that dialled and never wrote
+	// held this Stop — and `systemctl restart easywall-core` — until SIGKILL.
+	// Under d.mu, after d.quit, so waitOnPeer either registered before this
+	// sweep or refuses afterwards: track's ordering argument.
 	d.mu.Lock()
+	for c := range d.peerWait {
+		_ = c.Close()
+	}
 	stopPackets := d.packetsStop
 	d.mu.Unlock()
 	if stopPackets != nil {
@@ -563,13 +592,62 @@ func (d *Daemon) Stop() {
 	_ = os.Remove(d.cfg.SocketPath)
 }
 
+// maxConns is how many socket connections the core serves at once. The web
+// process sends a handful concurrently — a status poll, the page being loaded,
+// a feed update — so sixteen is headroom, and it bounds what the requests can
+// hold in memory at sixteen times MaxMessageBytes.
+const maxConns = 16
+
+// connTimeout bounds each wait on a peer: reading its request, writing its
+// reply. It is the longest any client waits for a reply (CommandTimeout), so
+// no client within its own deadline is cut off; past it, the client has given
+// up. Dispatch is not under it — an import's `nft --check` runs between the two.
+var connTimeout = func() time.Duration {
+	var longest time.Duration
+	for _, c := range shared.AllCommandTypes {
+		longest = max(longest, shared.CommandTimeout(c))
+	}
+	return longest
+}()
+
+// waitOnPeer registers conn as blocked on its peer, so Stop can close it, and
+// reports false — registering nothing — once Stop has run.
+func (d *Daemon) waitOnPeer(conn net.Conn) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	select {
+	case <-d.quit:
+		return false
+	default:
+	}
+	if d.peerWait == nil {
+		d.peerWait = make(map[net.Conn]struct{})
+	}
+	d.peerWait[conn] = struct{}{}
+	return true
+}
+
+func (d *Daemon) doneWaitingOnPeer(conn net.Conn) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	delete(d.peerWait, conn)
+}
+
 func (d *Daemon) handleConn(conn net.Conn) {
 	defer conn.Close()
+
+	// No deadline here used to mean a client that never finished its request
+	// held a goroutine, its memory and a Stop for ever.
+	if !d.waitOnPeer(conn) {
+		return
+	}
+	_ = conn.SetDeadline(time.Now().Add(connTimeout))
 
 	// One byte past the limit, so a request that is too long is refused as
 	// that. Cut at the limit, it used to reach json.Unmarshal truncated and be
 	// answered "invalid JSON command" — indistinguishable from a malformed one.
 	data, err := io.ReadAll(io.LimitReader(conn, shared.MaxMessageBytes+1))
+	d.doneWaitingOnPeer(conn)
 	if err != nil {
 		slog.Warn("read command error", "error", err)
 		return
@@ -603,6 +681,13 @@ func (d *Daemon) handleConn(conn net.Conn) {
 
 	resp := d.dispatch(cmd)
 	out, _ := json.Marshal(resp)
+	// A fresh deadline: dispatch may have used most of the first. Written even
+	// when Stop ran during dispatch — the work is done and the client is owed
+	// the answer; the deadline bounds that case instead of Stop's sweep.
+	_ = conn.SetDeadline(time.Now().Add(connTimeout))
+	if d.waitOnPeer(conn) {
+		defer d.doneWaitingOnPeer(conn)
+	}
 	_, _ = conn.Write(out)
 }
 

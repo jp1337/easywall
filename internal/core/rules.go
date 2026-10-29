@@ -430,6 +430,26 @@ func WriteAuditLog(logPath, action, ruleType, detail, user string) {
 	}
 }
 
+// tightenAuditLog takes the group and world bits off an audit log that already
+// exists. WriteAuditLog's 0600 only applies when it creates the file, so one
+// left by a release before 2.5.0 stayed 0640 root:easywall — readable by the
+// web process's group in a log_dir it can enter — wherever no logrotate
+// recreates it, which includes the container image. NewDaemon calls this once;
+// the rotation above rewrites through os.CreateTemp, 0600 already.
+func tightenAuditLog(logPath string) {
+	fi, err := os.Lstat(logPath)
+	if err != nil || !fi.Mode().IsRegular() || fi.Mode().Perm()&0o077 == 0 {
+		return
+	}
+	if err := os.Chmod(logPath, 0o600); err != nil {
+		slog.Error("the audit log is readable by more than root and could not be made 0600",
+			"path", logPath, "mode", fi.Mode().Perm(), "error", err)
+		return
+	}
+	slog.Info("the audit log was readable by more than root; it is 0600 now",
+		"path", logPath, "was", fi.Mode().Perm())
+}
+
 // rotateAuditLogIfLarge rewrites the audit log down to its newest entries once it
 // grows past auditLogMaxBytes, keeping the most recent half so a rotation is rare
 // rather than one per following write. It leaves an audit_rotated entry recording

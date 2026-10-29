@@ -66,3 +66,22 @@ func assertMode(t *testing.T, path string, want os.FileMode) {
 			filepath.Base(path), got, want)
 	}
 }
+
+// An audit log from before 2.5.0 is 0640 root:easywall, and OpenFile's mode
+// only applies at creation: where no logrotate recreates the file — the
+// container image ships none — it stayed group-readable for ever, in a log_dir
+// the web user can enter. Measured 0640 before and after WriteAuditLog. The
+// core tightens it when it starts.
+func TestNewDaemon_TightensAnOldAuditLog(t *testing.T) {
+	cfg := newTestConfig(t)
+	path := cfg.AuditLogPath()
+	if err := os.WriteFile(path, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, 0o640); err != nil { // #nosec G302 -- the pre-2.5.0 mode, under test
+		t.Fatal(err)
+	}
+	WriteAuditLog(path, "apply_started", "all", "", "tester")
+	_, _ = NewDaemon(cfg) // a failure past the log directory is not this test's concern
+	assertMode(t, path, 0600)
+}

@@ -46,6 +46,18 @@ first limit planned (plan P12). `TestMaxMessageBytesCarriesAFullFeed` pins both,
 `TestSendCommand_RequestLimitIsExact`,
 `TestSendCommand_ResponseLimitIsExact`, `TestDaemonHandleConn_RequestLimitIsExact`.
 
+## Connections
+
+| | Core (`handleConn`, the accept loop) |
+|---|---|
+| deadline | `connTimeout` per wait on the peer — reading the request, writing the reply — = the longest `CommandTimeout` (35 s). Dispatch is not under it, so an import's `nft --check` is never cut off. `TestDaemonConnTimeout_CoversEveryClientDeadline` |
+| at once | `maxConns`, 16; the next waits in the listen backlog. `TestDaemon_ServesAtMostMaxConnsAtOnce` |
+| at Stop | a connection waiting on its peer is closed; one in dispatch finishes and is answered. `TestDaemonStop_DoesNotWaitForAnIdleClient` |
+
+Before: no deadline and no cap — one idle client held `systemctl restart` until
+SIGKILL, and 32 clients sending 8 MiB − 1 without closing took the heap from
+4 MiB to 286 MiB.
+
 ## `UPDATE_FEED`
 
 Deadline class: long (`NftTimeout` + 5 s) — it takes the nft mutex to replace a

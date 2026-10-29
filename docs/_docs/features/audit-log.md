@@ -92,13 +92,14 @@ like. The attempt is charged to the same budget a wrong code is.
 **None of them carries colour**, and that is the same rule the table above
 states: colour means the firewall moved. A sign-in does not move it.
 
-**Three of them are folded.** `login_failed`, `login_2fa_failed` and
-`login_ratelimited` are the three a stranger can trigger. A burst from one
-address becomes two lines — the first immediately, then a summary sixty seconds
-later saying how many followed. Without that, forty addresses knocking for an
-hour would push everything else off the 200 lines this page shows. Beyond 1024
-distinct addresses inside one window the rest are counted together, so the volume
-is still recorded while the memory is not something a stranger chooses.
+**Four of them are folded.** `login_failed`, `login_2fa_failed`,
+`login_ratelimited` and `logout` are the four a stranger can trigger. A burst from
+one address becomes two lines — the first immediately, then a summary sixty
+seconds later saying how many followed. Without that, forty addresses knocking for
+an hour would push everything else off the 200 lines this page shows. Beyond 1024
+distinct addresses inside one window the rest are one burst together: the first
+immediately, then `from more than 1024 addresses, N more within 60s`. The volume
+is still recorded, and the memory is not something a stranger chooses.
 
 **The username is never recorded**, on a failed sign-in or a successful one. It
 would be foreign text in the record, and with exactly one account it says
@@ -157,10 +158,12 @@ It names the process. There were four from 2.7; 2.17's self-test added the fifth
 
 ## On disk
 
-One JSON object per line, append-only:
+One JSON object per line, append-only, `0600 root` — readable with `sudo`, never
+by the web process. A file left group-readable by a release before 2.5.0 is made
+`0600` when easywall-core starts:
 
 ```bash
-tail -f /var/log/easywall/audit.log
+sudo tail -f /var/log/easywall/audit.log
 ```
 
 ```json
