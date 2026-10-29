@@ -422,3 +422,35 @@ func TestReachVerdict_UnparseableAddressReturnsUnknownNotNil(t *testing.T) {
 		t.Errorf("expected ReachUnknown/ReasonNoAddress, got %s/%s", v.Verdict, v.Reason)
 	}
 }
+
+// Behind a trusted proxy the verdict line names the client and no port: the
+// port it would name is easywall's own, and the browser reaches the proxy's.
+// The line used to print "203.0.113.5 → :" with nothing after the colon.
+func TestHandleApplyGET_BehindATrustedProxyNamesNoPort(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	enrollFactor(t, s)
+	s.cfg.TrustedProxies = []string{"192.0.2.1"}
+
+	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{HasPending: true}))
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
+		Staged: shared.Rules{TCP: []shared.PortRule{{Port: "443"}}},
+	}))
+	fc.SetResponse(shared.CmdGetOptions, successResp(shared.FirewallOptions{}))
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+
+	req := httptest.NewRequest("GET", "/apply", nil)
+	req.RemoteAddr = "192.0.2.1:40000"
+	req.Header.Set("X-Forwarded-For", "203.0.113.5")
+	req.AddCookie(makeAuthCookie(t, s))
+	rec := httptest.NewRecorder()
+	s.router.ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `<span class="verdict-addr">203.0.113.5</span>`) {
+		t.Errorf("the verdict line does not name the client alone:\n%s", body)
+	}
+	if !strings.Contains(body, "the port your browser reaches is the proxy") {
+		t.Error("the trusted_proxy reason is not on the page")
+	}
+}

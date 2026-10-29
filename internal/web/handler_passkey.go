@@ -643,7 +643,7 @@ func (s *Server) handleLoginPasskeyBegin(w http.ResponseWriter, r *http.Request)
 // TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough are the same
 // arithmetic against two doors.
 func (s *Server) handleLoginPasskeyFinish(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.pendingForRequest(r)
+	p, ok := s.spendPendingAttempt(r)
 	if !ok {
 		s.clearPending(w, r)
 		http.Redirect(w, r, "/login", http.StatusSeeOther)

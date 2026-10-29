@@ -84,9 +84,10 @@ type Remedy struct {
 // changes, TestRemediesFollowTheChainOrder is the table to redo.
 func (e PacketLogEntry) Remedies() Remedy {
 	var r Remedy
-	// The allowlist, the blocklist and the port rules all live in the input
-	// chain; a forwarded packet is decided by forwarded rules, which this page
-	// does not write. No easywall log rule sits in the forward chain today.
+	// A forwarded packet is decided in the forward chain, whose order this
+	// table does not describe, and no easywall log rule sits there today. The
+	// lists reach it too since the forward-lists chain; the rows they would
+	// produce are not logged.
 	if e.Hook == "forward" {
 		return r
 	}

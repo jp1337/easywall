@@ -171,9 +171,11 @@ func TestLoginEvents_TheTableStopsGrowingAtTheCeiling(t *testing.T) {
 		addr := fmt.Sprintf("198.51.100.%d", i%255+1)
 		_ = l.record(shared.LogEventPayload{Event: shared.EvLoginFailed, Addr: addr}, start.Add(time.Second))
 	}
-	if len(*got) != tracked {
-		t.Errorf("addresses past the ceiling wrote %d immediate line(s); they must fold into "+
-			"the aggregate instead", len(*got)-tracked)
+	// One: the overflow's own first line, written when it opened like any
+	// burst's. Every later one folds into the aggregate.
+	if len(*got) != tracked+1 {
+		t.Errorf("addresses past the ceiling wrote %d immediate line(s); want 1, the rest "+
+			"folded into the aggregate", len(*got)-tracked)
 	}
 	if n := l.trackedAddrs(); n > loginEventMaxAddrs {
 		t.Errorf("the table holds %d addresses, past the ceiling of %d", n, loginEventMaxAddrs)
@@ -191,7 +193,7 @@ func TestLoginEvents_TheTableStopsGrowingAtTheCeiling(t *testing.T) {
 		t.Fatal("the window closed and the overflow was never recorded; the volume is invisible")
 	}
 	if !strings.Contains(aggregate, fmt.Sprintf("more than %d addresses", loginEventMaxAddrs)) ||
-		!strings.Contains(aggregate, "500 within 60s") {
+		!strings.Contains(aggregate, "499 more within 60s") {
 		t.Errorf("aggregate detail is %q, want it to name the ceiling and the count", aggregate)
 	}
 }
@@ -252,5 +254,53 @@ func TestLoginEvents_RecoveryUsedNamesWhatIsLeft(t *testing.T) {
 	}
 	if !strings.Contains((*got)[0].detail, "7") {
 		t.Errorf("detail is %q and does not say how many are left", (*got)[0].detail)
+	}
+}
+
+// netip.ParseAddr keeps an IPv6 zone of any length and any bytes, so the
+// "parsed, not free text" address used to carry whatever followed the %: a
+// 100 000-byte zone made a 100 013-byte audit detail, and an ESC in it reached
+// the log file. The zone names an interface on this host, not the client, so
+// the core drops it — immediate and debounced lines alike.
+func TestLoginEvents_TheZoneIsDropped(t *testing.T) {
+	l, got := newRecordingEvents()
+	start := time.Unix(1755600000, 0).UTC()
+	for _, addr := range []string{"fe80::1%" + strings.Repeat("Z", 100000), "fe80::1%x\x1b[31m"} {
+		for _, ev := range []shared.LoginEvent{shared.EvLoginOK, shared.EvLoginFailed} {
+			*got = nil
+			l = newLoginEvents(l.write)
+			_ = l.record(shared.LogEventPayload{Event: ev, Addr: addr}, start)
+			if len(*got) != 1 || (*got)[0].detail != "from fe80::1" {
+				d := ""
+				if len(*got) == 1 {
+					d = (*got)[0].detail
+				}
+				t.Errorf("%s with a zoned address: detail %d bytes %q, want %q", ev, len(d), d[:min(len(d), 40)], "from fe80::1")
+			}
+		}
+	}
+}
+
+// With the table full, a new address's first failure used to write nothing
+// until the overflow window closed, sixty seconds or more later — the one case
+// where "the first line of any burst is written the moment it opens" was false.
+// The overflow is one burst per event: its first line now lands immediately,
+// and the summary counts the rest.
+func TestLoginEvents_TheOverflowsFirstLineIsImmediate(t *testing.T) {
+	l, got := newRecordingEvents()
+	start := time.Unix(1755600000, 0).UTC()
+	for i := 0; i < loginEventMaxAddrs; i++ {
+		_ = l.record(shared.LogEventPayload{Event: shared.EvLoginFailed,
+			Addr: fmt.Sprintf("10.%d.%d.%d", i/65025, (i/255)%255, i%255+1)}, start)
+	}
+	full := len(*got)
+
+	_ = l.record(shared.LogEventPayload{Event: shared.EvLoginFailed, Addr: "198.51.100.1"}, start.Add(time.Second))
+	if len(*got) != full+1 || (*got)[full].detail != "from 198.51.100.1" {
+		t.Fatalf("the overflow's first failure wrote %d line(s) at once, want 1 reading %q", len(*got)-full, "from 198.51.100.1")
+	}
+	_ = l.record(shared.LogEventPayload{Event: shared.EvLoginFailed, Addr: "198.51.100.2"}, start.Add(2*time.Second))
+	if len(*got) != full+1 {
+		t.Errorf("the overflow's second failure wrote a line at once; it belongs in the summary")
 	}
 }

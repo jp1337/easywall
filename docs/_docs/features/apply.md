@@ -37,7 +37,8 @@ The page lists every difference between the staged set and the running one —
 ports, addresses, forwards, custom rules — and the configuration changes that go
 in with them. An options or network change is a pending change like any other:
 it is written to the daemon's config immediately and takes effect at the next
-apply. Until 2.10 this page said there was nothing to apply while the options
+apply. A rollback takes it out of the kernel with the rules and leaves it on this
+list. Until 2.10 this page said there was nothing to apply while the options
 page was telling you to.
 
 Add and remove are `+`, `-` and `~` in the left column and carry no colour. A
@@ -63,7 +64,7 @@ working. So this page can go on answering while the firewall admits nobody new.
 Confirming from it would confirm a lockout — open a second connection and check
 there, exactly as step 2 says.
 
-*Cannot tell* is not a hedge. Three things are not knowable from the web
+*Cannot tell* is not a hedge. Four things are not knowable from the web
 interface, and each says so in its own words rather than guessing:
 
 - The bogon filter matches on which interface a packet arrives at, and nothing
@@ -72,6 +73,9 @@ interface, and each says so in its own words rather than guessing:
   which is also not knowable from here. A network you named yourself in the
   Docker settings is different, and gets a plain **reachable**.
 - Custom rules are raw nftables and are appended after everything else.
+- Behind a [trusted proxy]({{ '/docs/installation/reverse-proxy/' | relative_url }}),
+  your browser reaches the proxy's port, not this interface's, and the request
+  does not say which.
 
 A wrong *blocks new connections* would cost the trust the true one needs.
 
@@ -83,7 +87,7 @@ A wrong *blocks new connections* would cost the trust the true one needs.
 | **Staged changes** | you have edits the firewall does not have yet | apply them |
 | **Waiting for confirmation** | live but unconfirmed, the window is open | check a second connection, then confirm |
 | **Confirmed** | the rules stay; shown until the next apply | nothing |
-| **Rolled back** | the window closed unconfirmed; the previous rules are back — on a first apply that means the firewall is off again, because there were none | your staged edits are still there — review and apply again |
+| **Rolled back** | the window closed unconfirmed; the previous rules and options are back — on a first apply that means the firewall is off again, because there were none | your staged edits are still there — review and apply again |
 
 A rollback loses nothing you staged. It undoes what went **live**, and the edits
 that caused it are still on their pages.

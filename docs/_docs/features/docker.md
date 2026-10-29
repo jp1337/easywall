@@ -10,7 +10,7 @@ easywall v1 flushed iptables and took Docker's chains with it. v2 cannot: it own
 one table and never looks at another.
 
 {% include themed-figure.html base="/assets/diagrams/docker-coexist" ext="svg"
-   alt="easywall creates, flushes and replaces only table inet easywall. It never touches table ip docker or any other table." %}
+   alt="easywall creates, flushes and replaces only table inet easywall. It never touches Docker's tables or any other table." %}
 
 An apply flushes and rebuilds `table inet easywall`. `DOCKER`, `DOCKER-USER` and
 `DOCKER-ISOLATION` live elsewhere and are not read, written or deleted.
@@ -67,7 +67,9 @@ never reaches the `input` chain and no ordinary port rule can see it. Under
 `published_ports = "filtered"` easywall's `forward` chain denies inbound traffic
 to a container address, and a port rule with scope `forwarded` is what opens one.
 That is the whole list of ports on the host in one place — which is what a
-provider firewall was doing for you.
+provider firewall was doing for you. The blocklist, the feeds and the
+countries are checked before those rules too; the allowlist exempts from the
+feeds only and opens no container port.
 
 > **Switching it on closes every published port that has no forwarded rule.**
 > Write the rules first, then flip the key, then apply once. The 120-second
@@ -162,7 +164,7 @@ only containers should reach it — or set docker.published_ports = "open"
 |---|---|
 | Once per apply, every time | No folding of repeats. The apply you are reading the log of is the one that has to say it |
 | A sourced rule is named too | It covers only the sources it lists, which is never the whole set the deny closes — see the callout above |
-| **Both families** | Docker's `ip nat` and `ip6 nat` DNAT rules are read, so a port published only on IPv6 is named too |
+| **Both families, both backends** | Docker's `ip nat` and `ip6 nat` DNAT rules are read — or `ip docker-bridges` and `ip6 docker-bridges` under its nftables backend — so a port published only on IPv6 is named too |
 | Loopback publishes are not named | `-p 127.0.0.1:8081:80` is reached from the host only, and that connection never crosses the forward chain |
 | No Docker socket, no client library | A host whose Docker has stopped with its rules still loaded is exactly the host this is about |
 

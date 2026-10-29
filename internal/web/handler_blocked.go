@@ -636,6 +636,15 @@ func (s *Server) lockoutRefusal(r *http.Request, before, after shared.Rules) str
 	if now.Verdict == shared.ReachBlocked && was.Verdict != shared.ReachBlocked {
 		return "blocked_refused_lockout"
 	}
+	// Behind a trusted proxy there is no verdict to flip — the port is the
+	// proxy's — but a blocklist entry drops every port, so blocklisting the
+	// client the proxy named needs no port to refuse. The verdict used to be
+	// computed for webPort, and when only the proxy's port was open it read
+	// "blocked" before and after, so this click went through unrefused.
+	if fallback != nil && fallback.Reason == shared.ReasonTrustedProxy &&
+		shared.InAnyEntry(addr, after.Blocklist) && !shared.InAnyEntry(addr, before.Blocklist) {
+		return "blocked_refused_lockout"
+	}
 
 	peer, err := netip.ParseAddr(peerIP(r))
 	if err != nil {

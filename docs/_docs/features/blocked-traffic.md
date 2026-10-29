@@ -119,7 +119,7 @@ port and a protocol the firewall can open:
 | **Allowlist** | Stages the source address on the allowlist |
 | **Blocklist** | Stages the source address on the blocklist |
 | **Open *port*** | Stages a port rule for the packet's destination port and protocol |
-| **Block country** | Stages the source's country, as [Block a country]({{ '/docs/features/countries/' | relative_url }}) does, at most 30. Only for a country not on yet, never on a forwarded packet: countries filter what reaches this host |
+| **Block country** | Stages the source's country, as [Block a country]({{ '/docs/features/countries/' | relative_url }}) does, at most 30. Only for a country not on yet. A forwarded packet is offered no action |
 
 | The packet was refused by | Offered | Why not the others |
 |---|---|---|

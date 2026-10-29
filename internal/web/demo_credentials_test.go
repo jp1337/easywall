@@ -1,10 +1,14 @@
 package web
 
 import (
+	"bytes"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 )
 
 // Every route that can write credentials to web.toml, and the form body that
@@ -36,7 +40,10 @@ var credentialWritingRoutes = []struct {
 	path string
 	body string
 }{
-	{"/password", "current_password=currentpassword123&new_password=ReplacedInTheDemo1&confirm_password=ReplacedInTheDemo1"},
+	// The "!" is load-bearing: without a symbol the new password fails
+	// passwordPolicyError before the save, and this entry passed with
+	// handlePasswordPOST's demo guard deleted.
+	{"/password", "current_password=currentpassword123&new_password=ReplacedInTheDemo1!&confirm_password=ReplacedInTheDemo1!"},
 	{"/password/2fa/begin", "current_password=currentpassword123"},
 	{"/password/2fa/confirm", "code=000000"},
 	{"/password/2fa/enrol-unverified", "ack=1"},
@@ -126,7 +133,7 @@ func TestDemoModeSaysWhyItRefused(t *testing.T) {
 	s.cfg.Password = hash
 
 	post := doFormRequest(s, "POST", "/password",
-		"current_password=currentpassword123&new_password=ReplacedInTheDemo1&confirm_password=ReplacedInTheDemo1",
+		"current_password=currentpassword123&new_password=ReplacedInTheDemo1!&confirm_password=ReplacedInTheDemo1!",
 		makeAuthCookie(t, s))
 
 	cookies := post.Result().Cookies()
@@ -235,5 +242,57 @@ func TestTheDemoSaysWhyItWillNotSaveTheNotificationSettings(t *testing.T) {
 	if trigger := rec.Header().Get("HX-Trigger"); !strings.Contains(trigger, "demo_readonly") {
 		t.Errorf("HX-Trigger = %q, want demo_readonly: a form that silently does nothing "+
 			"reads as a broken page", trigger)
+	}
+}
+
+// demoKitchenSinkForm switches on every field a web.toml-writing handler reads,
+// so one body drives each of them past its validation to the write.
+const demoKitchenSinkForm = "current_password=currentpassword123" +
+	"&new_password=ReplacedInTheDemo1!&confirm_password=ReplacedInTheDemo1!" +
+	"&code=000000&ack=1" +
+	"&kind=webhook&url=https://attacker.example/hook&on_panic=on&on_rolled_back=on&on_accepted=on&on_failed_logins=on" +
+	"&telemetry=on&answer=yes"
+
+// The list above is written by hand; this is the part nobody has to remember.
+// It posts to every POST route the demo registers and asserts that web.toml is
+// byte-identical afterwards — demo.md promises a visitor's changes live in
+// memory and are gone on restart, and web.toml is the one file that survives
+// one. /system/telemetry was not on the list and wrote telemetry = true into
+// it: 303 to the visitor, the next visitor's counting decided.
+//
+// Twice per route, the second time with reset=1, because a reset is a second
+// submit inside the same form and takes a branch of its own.
+func TestDemoModeWritesNothingToWebTOML(t *testing.T) {
+	s := newDemoTestServer(t)
+	routes := map[string]bool{}
+	if err := chi.Walk(s.router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		if method == http.MethodPost {
+			routes[strings.ReplaceAll(strings.ReplaceAll(route, "{", ""), "}", "")] = true
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !routes["/system/telemetry"] {
+		t.Fatal("the walk did not find /system/telemetry; it is not walking the demo's router")
+	}
+	for route := range routes {
+		for _, body := range []string{demoKitchenSinkForm, demoKitchenSinkForm + "&reset=1"} {
+			s := newDemoTestServer(t)
+			hash, err := HashPassword("currentpassword123")
+			if err != nil {
+				t.Fatal(err)
+			}
+			s.cfg.Password = hash
+			before, err := os.ReadFile(s.cfg.configPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			doAuthFormRequest(t, s, route, body)
+			if after, _ := os.ReadFile(s.cfg.configPath); !bytes.Equal(before, after) {
+				t.Errorf("POST %s (reset=%v) rewrote web.toml in demo mode; the change outlives the "+
+					"restart demo.md says clears it", route, strings.HasSuffix(body, "&reset=1"))
+			}
+		}
 	}
 }

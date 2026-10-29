@@ -88,13 +88,19 @@ func (b *loginBurst) evictDeadLocked(now time.Time) {
 	}
 }
 
-// record takes one login event and returns a Notification when this address has
+// record takes one login event and returns a Notification when this address —
+// keyed as the login limiter keys it, so an IPv6 one counts with its /64 — has
 // just crossed the threshold. now is a parameter so the windows are testable
 // without sleeping through them.
 func (b *loginBurst) record(ev shared.LoginEvent, addr string, now time.Time) *Notification {
 	if !countedEvents[ev] || addr == "" {
 		return nil
 	}
+	// The limiter's key, not the address: an IPv6 attacker picks any address in
+	// its /64, and keyed on the full address twenty failures from twenty of them
+	// emptied one limiter bucket and notified nobody — the threshold's "worth
+	// the same as easywall refusing that address" was false for IPv6.
+	addr = limiterKey(addr)
 	b.mu.Lock()
 	defer b.mu.Unlock()
 

@@ -52,6 +52,15 @@ func main() {
 	}
 	flag.Parse()
 
+	// Anything left over is a subcommand written after a flag. It was ignored, so
+	// `easywall-core -config X panic` started a second daemon, which restored the
+	// rules and took over the live core's socket.
+	if flag.NArg() > 0 {
+		fmt.Fprintf(os.Stderr, "easywall-core: unexpected argument %q; a subcommand comes first: "+
+			"easywall-core %s -config <path>\n", flag.Arg(0), flag.Arg(0))
+		os.Exit(exitFailed)
+	}
+
 	if *showVersion {
 		fmt.Println("easywall-core", shared.CurrentVersion)
 		return

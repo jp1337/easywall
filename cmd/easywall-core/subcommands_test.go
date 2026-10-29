@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -1209,4 +1210,26 @@ func TestSelftestWritesNoAuditEntryWithNothingProven(t *testing.T) {
 			t.Errorf("a skipped run wrote %+v; nothing was proven this time", entries)
 		}
 	})
+}
+
+// `easywall-core -config X panic` used to start a second daemon: only os.Args[1]
+// is a subcommand, and flag.Parse left `panic` in flag.Args, which nothing read.
+// That daemon ran the startup restore and took over the live core's socket — in
+// a lockout, the opposite of panic. Run as a child so main's os.Exit is real.
+func TestAFlagBeforeASubcommandIsRefused(t *testing.T) {
+	if os.Getenv("EASYWALL_TEST_MAIN") == "1" {
+		os.Args = []string{"easywall-core", "-config", "/nonexistent/easywall.toml", "panic"}
+		main()
+		return
+	}
+	cmd := exec.Command(os.Args[0], "-test.run=^TestAFlagBeforeASubcommandIsRefused$")
+	cmd.Env = append(os.Environ(), "EASYWALL_TEST_MAIN=1")
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("expected a non-zero exit, got success:\n%s", out)
+	}
+	if !strings.Contains(string(out), `unexpected argument "panic"`) ||
+		strings.Contains(string(out), "failed to load config") {
+		t.Fatalf("the stray subcommand must be refused before the daemon path runs:\n%s", out)
+	}
 }

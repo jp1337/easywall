@@ -52,6 +52,33 @@ func TestTwoAddressesAreCountedApart(t *testing.T) {
 	}
 }
 
+// The notification counts what the login limiter counts. An IPv6 host is
+// routed a whole /64 and picks any address in it: twenty failures from twenty
+// of them were one limiter bucket and zero notifications, because this table
+// keyed on the full address.
+func TestAnIPv6Slash64IsCountedAsTheLimiterCountsIt(t *testing.T) {
+	b := newLoginBurst()
+	base := time.Unix(0, 0).UTC()
+	keys := map[string]bool{}
+	var fired []*Notification
+	for i := 1; i <= 20; i++ {
+		addr := fmt.Sprintf("2001:db8:1:2::%x", i)
+		keys[limiterKey(addr)] = true
+		if n := b.record(shared.EvLoginFailed, addr, base); n != nil {
+			fired = append(fired, n)
+		}
+	}
+	if len(keys) != 1 {
+		t.Fatalf("the limiter keyed the sample into %d buckets, want 1 — the sample is wrong", len(keys))
+	}
+	if len(fired) != 1 {
+		t.Fatalf("twenty failures from one /64 fired %d notifications, want 1", len(fired))
+	}
+	if !strings.Contains(fired[0].Detail, "2001:db8:1:2::/64") {
+		t.Errorf("the detail does not name the network the limiter refused: %q", fired[0].Detail)
+	}
+}
+
 func TestASuccessfulLoginIsNotCounted(t *testing.T) {
 	b := newLoginBurst()
 	base := time.Unix(0, 0).UTC()

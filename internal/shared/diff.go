@@ -62,8 +62,12 @@ func DiffRules(current, staged Rules) []RuleDelta {
 
 // diffPorts keys by port: the order rules are listed in does not change what is
 // accepted, so a moved row is not a change and a description edit is `changed`
-// rather than an add and a remove. A port listed twice is diffed on its first
-// entry; the duplicate produces no rule of its own either.
+// rather than an add and a remove.
+//
+// A port listed twice is two kernel accepts — addPortAccept builds every entry —
+// so its detail is every entry's, joined. It used to be the first entry's alone,
+// on the belief that the duplicate produced no rule: an open second row for a
+// source-restricted port then widened it to the world with an empty preview.
 func diffPorts(set string, current, staged []PortRule) []RuleDelta {
 	cur := indexPorts(current)
 	next := indexPorts(staged)
@@ -76,12 +80,13 @@ func diffPorts(set string, current, staged []PortRule) []RuleDelta {
 		}
 		seen[r.Port] = true
 		before, existed := cur[r.Port]
+		to := next[r.Port]
 		switch {
 		case !existed:
-			out = append(out, RuleDelta{Set: set, Kind: DeltaAdded, Key: r.Port, Label: portDetail(r)})
-		case portDetail(before) != portDetail(r):
+			out = append(out, RuleDelta{Set: set, Kind: DeltaAdded, Key: r.Port, Label: to})
+		case before != to:
 			out = append(out, RuleDelta{Set: set, Kind: DeltaChanged, Key: r.Port,
-				Label: portDetail(r), From: portDetail(before), To: portDetail(r)})
+				Label: to, From: before, To: to})
 		}
 	}
 	seen = map[string]bool{}
@@ -91,17 +96,20 @@ func diffPorts(set string, current, staged []PortRule) []RuleDelta {
 		}
 		seen[r.Port] = true
 		if _, still := next[r.Port]; !still {
-			out = append(out, RuleDelta{Set: set, Kind: DeltaRemoved, Key: r.Port, Label: portDetail(r)})
+			out = append(out, RuleDelta{Set: set, Kind: DeltaRemoved, Key: r.Port, Label: cur[r.Port]})
 		}
 	}
 	return out
 }
 
-func indexPorts(rules []PortRule) map[string]PortRule {
-	m := make(map[string]PortRule, len(rules))
+// indexPorts maps each port to the detail of every rule listing it.
+func indexPorts(rules []PortRule) map[string]string {
+	m := make(map[string]string, len(rules))
 	for _, r := range rules {
-		if _, dup := m[r.Port]; !dup {
-			m[r.Port] = r
+		if prev, dup := m[r.Port]; dup {
+			m[r.Port] = prev + " | " + portDetail(r)
+		} else {
+			m[r.Port] = portDetail(r)
 		}
 	}
 	return m

@@ -95,12 +95,12 @@ func TestApply_AFailedAcceptanceStartRollsTheFileBack(t *testing.T) {
 		t.Fatal("apply does not call acceptance.Start; this guard is reading the wrong function")
 	}
 	// 1000 bytes reaches past the branch's own explanatory comment (924 bytes
-	// to its "f.rollback(state, user)") while stopping well short of the next
+	// to its "f.rollback(state, before, user)") while stopping well short of the next
 	// occurrence of that call, in the kernel-write branch's own rollback
 	// (2950 bytes away) — so widening it cannot make this pass by finding the
 	// wrong branch's rollback.
 	branch := body[start:min(start+1000, len(body))]
-	if !strings.Contains(branch, "f.rollback(state, user)") {
+	if !strings.Contains(branch, "f.rollback(state, before, user)") {
 		t.Error("the acceptance.Start error path returns without rolling back. PromoteStaged " +
 			"has already run, so Current holds a set nobody confirmed — and the next boot or " +
 			"resume installs it with no window, because Current is assumed to have survived one")

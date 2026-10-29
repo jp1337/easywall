@@ -381,12 +381,19 @@ func (f *Firewall) apply(user string) error {
 	opts, nets := f.cfg.FirewallOptions(), f.cfg.NetworkSettings()
 	acceptanceOn := f.cfg.SystemSettings().Acceptance.Enabled
 
+	// What a rollback goes back to, for the configuration half: the snapshot of
+	// what is live now, before this apply writes anything. BackupCurrent above
+	// is the rules half. Every rollback used to rebuild the table from f.cfg,
+	// which already held the change under trial, so an options or network
+	// change survived the rollback it had caused. See configToRestore.
+	before := f.appliedConfig()
+
 	// 3. Promote staged → current in state — provisionally, when a window will
 	// judge it. The marker goes down first, so there is no instant at which the
 	// file holds an unconfirmed Current that a restart would mistake for a
 	// confirmed one. See unconfirmed.go.
 	if acceptanceOn {
-		if err := markUnconfirmed(f.cfg.UnconfirmedMarkerPath()); err != nil {
+		if err := markUnconfirmed(f.cfg.UnconfirmedMarkerPath(), before); err != nil {
 			WriteAuditLog(f.cfg.AuditLogPath(), "apply_failed", "all",
 				"the apply could not be marked unconfirmed, so nothing was applied: "+err.Error(), user)
 			return fmt.Errorf("mark apply unconfirmed: %w", err)
@@ -448,7 +455,7 @@ func (f *Firewall) apply(user string) error {
 			// kernel half simply rewrites the rules already in force.
 			WriteAuditLog(f.cfg.AuditLogPath(), "apply_failed", "all",
 				"the acceptance window could not be opened, so nothing was applied: "+err.Error(), user)
-			f.rollback(state, user)
+			f.rollback(state, before, user)
 			return err
 		}
 		// Registered where the window opens, not after Wait returns. Everything
@@ -500,7 +507,7 @@ func (f *Firewall) apply(user string) error {
 				"reach the kernel before nft.Apply reports an error",
 			user,
 		)
-		f.rollback(state, user)
+		f.rollback(state, before, user)
 		return fmt.Errorf("apply nftables rules: %w", err)
 	}
 
@@ -546,7 +553,7 @@ func (f *Firewall) apply(user string) error {
 		// The window opened above; close it before rolling back, or the status
 		// counts down on a machine the console has already taken down.
 		f.acceptance.Reset()
-		f.rollback(state, user)
+		f.rollback(state, before, user)
 		return ErrPanicEngaged
 	}
 
@@ -600,7 +607,7 @@ func (f *Firewall) apply(user string) error {
 		reason := f.acceptance.Reason()
 		slog.Warn("acceptance ended without confirmation — rolling back", "reason", reason)
 		WriteAuditLog(f.cfg.AuditLogPath(), "apply_rolledback", "all", reason, user)
-		f.rollback(state, user)
+		f.rollback(state, before, user)
 		return nil
 	}
 
@@ -619,7 +626,11 @@ func (f *Firewall) apply(user string) error {
 // left the host with whatever half-state the kernel had, and the only record
 // was the original error. A failed rollback gets its own audit entry, because
 // it is the line an operator needs to find first.
-func (f *Firewall) rollback(previous shared.RulesState, user string) {
+//
+// before is the configuration snapshot that was live when the apply began; the
+// kernel half rebuilds with it and records it, so the rules and the options go
+// back together. See configToRestore.
+func (f *Firewall) rollback(previous shared.RulesState, before shared.AppliedConfigResult, user string) {
 	var failures []string
 
 	// The rules file is reverted first, and unconditionally. Panic mode does
@@ -725,8 +736,9 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 		// missing call away from the collect written to prevent exactly that.
 		f.collectUsageBeforeWrite()
 
-		opts, nets := f.cfg.FirewallOptions(), f.cfg.NetworkSettings()
 		var applyErr error
+		var opts shared.FirewallOptions
+		var nets shared.NetworkSettings
 		firstApply := !f.everConfigured(previous)
 		if firstApply {
 			// Nothing has ever been applied here, so "back to where you were"
@@ -753,6 +765,9 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 			// no port open — so it takes boot_enforce_failed, the crit action the
 			// restore path already uses for a teardown that could not be carried
 			// out, rather than a neutral one coloured by which branch reached it.
+			// Recorded below as before this fix: the live config, since there
+			// is no earlier configuration to go back to.
+			opts, nets = f.cfg.FirewallOptions(), f.cfg.NetworkSettings()
 			action := "boot_not_configured"
 			detail := "the first apply was not confirmed; the table was taken down and " +
 				"this host is not filtering — open the interface and apply again"
@@ -765,6 +780,7 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 			}
 			WriteAuditLog(f.cfg.AuditLogPath(), action, "all", detail, user)
 		} else {
+			opts, nets = f.configToRestore(before)
 			applyErr = f.nft.ApplyWithFeeds(previous, opts, nets, f.feedContents(previous.Current))
 		}
 		if applyErr != nil {
@@ -847,12 +863,14 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 		// perform before their own recordAppliedConfig — this used to sit right
 		// after nft.Apply above, which could record a configuration for a kernel
 		// that panicLandedDuringWrite then tore back down a few lines later. The
-		// previous rules go back in with the configuration as it is *now*, not as
-		// it was when they were first applied, because that is what the kernel is
-		// holding — but only when the write actually succeeded and nothing undid
+		// previous rules go back in with the configuration that was live before
+		// this apply — configToRestore's answer — and that is what is recorded.
+		// This said "the configuration as it is *now*" until the rollback stopped
+		// keeping the option change that caused it; recording f.cfg here made
+		// /apply report nothing pending for an option change that had just been
+		// rolled back. Only when the write actually succeeded and nothing undid
 		// it in the window right after. opts and nets are exactly what nft.Apply
-		// above was given, not a fresh read, so a SAVE_OPTIONS landing in this
-		// gap cannot record a configuration the kernel does not hold.
+		// above was given.
 		if applyErr == nil && !tornDownAgain {
 			f.recordAppliedConfig(opts, nets)
 		}

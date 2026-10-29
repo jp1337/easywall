@@ -39,7 +39,7 @@ You may test easywall and report what you find. There is no payment: easywall is
 
 easywall is designed with a layered approach — each layer independently limits the blast radius of a compromise:
 
-- **No subprocess in the apply path** — typed rules go to nftables over netlink
+- **No subprocess for typed rules** — typed rules go to nftables over netlink
   (`google/nftables`) as Go structs, so there is no command line to inject into. Custom
   rules are the one exception: they are arbitrary nftables expressions and need the
   official parser, so they reach `nft -f -` over **stdin** — no argv — and only inside

@@ -34,9 +34,24 @@ func readAppliedConfig(path string) (shared.AppliedConfigResult, error) {
 	if err != nil {
 		return shared.AppliedConfigResult{}, fmt.Errorf("read applied config: %w", err)
 	}
-	var cfg shared.AppliedConfig
+	cfg, err := parseAppliedConfig(data)
+	if err != nil {
+		return shared.AppliedConfigResult{}, err
+	}
+	return shared.AppliedConfigResult{Recorded: true, Config: cfg}, nil
+}
+
+// parseAppliedConfig decodes a snapshot readAppliedConfig or the unconfirmed
+// marker holds.
+func parseAppliedConfig(data []byte) (shared.AppliedConfig, error) {
+	// Over the shipped defaults: a snapshot written before an option existed
+	// has no field for it, and since a restore enforces this record, zero would
+	// switch the option off at the next boot — the LoadConfig trap again.
+	d := shared.CoreDefault()
+	cfg := shared.AppliedConfig{Firewall: d.Firewall,
+		Network: shared.NetworkSettings{IPv6: d.IPv6, Docker: d.Docker, Routing: d.Routing}}
 	if err := json.Unmarshal(data, &cfg); err != nil {
-		return shared.AppliedConfigResult{}, fmt.Errorf("parse applied config: %w", err)
+		return shared.AppliedConfig{}, fmt.Errorf("parse applied config: %w", err)
 	}
 	// FirewallOptions has no json tags, so the file carries Go field names, and
 	// a snapshot 2.22 wrote says LogBlacklist. Read as 0 and false, it would
@@ -57,7 +72,7 @@ func readAppliedConfig(path string) (shared.AppliedConfigResult, error) {
 			cfg.Firewall.LogBlocklistLimit = *v
 		}
 	}
-	return shared.AppliedConfigResult{Recorded: true, Config: cfg}, nil
+	return cfg, nil
 }
 
 // writeAppliedConfig stores the snapshot atomically — write a temporary file,
@@ -162,4 +177,27 @@ func (f *Firewall) warnAppliedConfigErrOnce(err error) {
 	}
 	slog.Warn("cannot read the recorded configuration; treating it as unrecorded",
 		"path", f.cfg.AppliedConfigPath(), "error", err)
+}
+
+// configToRestore is the configuration a rollback rebuilds the table with:
+// before, the snapshot that was live when the apply being undone began.
+//
+// Until this existed, every rollback read f.cfg — which SAVE_OPTIONS and
+// SAVE_NETWORK had already rewritten with the very change under trial — so
+// the previous rules went back in with the new options. Measured: ipv6.mode
+// filter confirmed, block applied and rolled back, and the kernel still held
+// `meta nfproto ipv6 drop` under a status reading rolled_back. f.cfg keeps the
+// operator's values, so /apply shows them as pending, exactly as a rolled-back
+// rule edit stays in Staged.
+//
+// No snapshot — a host that has not recorded one since 2.10, or whose record
+// could not be written — falls back to f.cfg, which is the old behaviour, and
+// says so once per rollback: there is nothing else to go back to.
+func (f *Firewall) configToRestore(before shared.AppliedConfigResult) (shared.FirewallOptions, shared.NetworkSettings) {
+	if before.Recorded {
+		return before.Config.Firewall, before.Config.Network
+	}
+	slog.Warn("no record of the configuration in force before this apply; the rollback " +
+		"rebuilds the previous rules with the options and network settings as configured now")
+	return f.cfg.FirewallOptions(), f.cfg.NetworkSettings()
 }

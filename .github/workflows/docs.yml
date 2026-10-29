@@ -17,6 +17,11 @@ name: Docs
 # when it and the generated docs/_docs/changelog.md disagree, and a pull
 # request that touches only CHANGELOG.md — exactly the drift that check
 # exists to catch — would otherwise run no job at all.
+#
+# scripts/** and package*.json for the same reason: every check below is a
+# script under scripts/ run through package.json, and a pull request that
+# edited only render-changelog.mjs or prose-check.mjs ran none of them.
+# TestDocsWorkflowRunsWhenItsScriptsChange holds the lists to what is run.
 on:
   push:
     branches: [main]
@@ -26,6 +31,9 @@ on:
       - ".github/actions/**"
       - "CHANGELOG.md"
       - ".codespellrc"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
   pull_request:
     paths:
       - "docs/**"
@@ -33,6 +41,9 @@ on:
       - ".github/actions/**"
       - "CHANGELOG.md"
       - ".codespellrc"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
 
 # Read-only by default. Publishing rights are granted to the deploy job alone, so
 # a pull-request run cannot reach GitHub Pages even in principle.
@@ -219,11 +230,12 @@ jobs:
       # failing them again here would block a deploy for a typo and help
       # nobody. check:docs is different in kind: every one of its assertions
       # exists because that exact behaviour shipped broken once (see
-      # scripts/docs-check.mjs). main carries no required status checks
-      # (`enforce_admins` is on, but there is no `required_status_checks`), so
-      # a push here is not guaranteed to have passed the pull-request job
-      # first — the same reasoning "The site is not empty" and
-      # build-search-index above are already duplicated in this job for.
+      # scripts/docs-check.mjs). `Site builds` is not one of main's required
+      # checks — docs.yml is path-filtered, and a required check that never
+      # reports blocks a pull request for ever (ci-and-release.md) — so a push
+      # here is not guaranteed to have passed the pull-request job first: the
+      # same reasoning "The site is not empty" and build-search-index above
+      # are already duplicated in this job for.
       - uses: actions/setup-node@v7
         with:
           node-version: "24"

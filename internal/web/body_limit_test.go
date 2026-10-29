@@ -86,24 +86,33 @@ func TestAnImportedListCanBeSavedBackFromItsEditor(t *testing.T) {
 		t.Fatalf("the sample is %d bytes, over the import limit", len(file))
 	}
 
-	fc := newFakeCore(t)
-	s := newTestServer(t, fc)
-	enrollFactor(t, s)
-	var saved atomic.Int32
-	fc.OnCommand(shared.CmdSaveRules, func(c shared.Command) {
-		var p struct {
-			Rules []string `json:"rules"`
-		}
-		_ = json.Unmarshal(c.Payload, &p)
-		saved.Store(int32(len(p.Rules)))
-	})
+	// The pre-2.23 aliases too: they exist for a tab left open across the
+	// upgrade, and that tab's list is exactly as large as the page's.
+	for path, page := range map[string]string{
+		"/blocklist": "/blocklist", "/blacklist": "/blocklist",
+		"/allowlist": "/allowlist", "/whitelist": "/allowlist",
+	} {
+		t.Run(path, func(t *testing.T) {
+			fc := newFakeCore(t)
+			s := newTestServer(t, fc)
+			enrollFactor(t, s)
+			var saved atomic.Int32
+			fc.OnCommand(shared.CmdSaveRules, func(c shared.Command) {
+				var p struct {
+					Rules []string `json:"rules"`
+				}
+				_ = json.Unmarshal(c.Payload, &p)
+				saved.Store(int32(len(p.Rules)))
+			})
 
-	// A browser submits a textarea's line breaks as CRLF.
-	form := url.Values{"entries": {strings.Join(entries, "\r\n")}}.Encode()
-	rec := doAuthFormRequest(t, s, "/blocklist", form)
+			// A browser submits a textarea's line breaks as CRLF.
+			form := url.Values{"entries": {strings.Join(entries, "\r\n")}}.Encode()
+			rec := doAuthFormRequest(t, s, path, form)
 
-	assertRedirect(t, rec, "/blocklist")
-	if got := int(saved.Load()); got != len(entries) {
-		t.Errorf("saved %d of %d imported entries (form body %d bytes)", got, len(entries), len(form))
+			assertRedirect(t, rec, page)
+			if got := int(saved.Load()); got != len(entries) {
+				t.Errorf("saved %d of %d imported entries (form body %d bytes)", got, len(entries), len(form))
+			}
+		})
 	}
 }

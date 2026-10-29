@@ -171,12 +171,15 @@ Allowlisting `192.168.1.0/24` had no effect at all, and neither did letting Dock
 `172.17.0.0/16` through.
 
 An exemption is narrow: it covers what you allowed and nothing more. Allowlist
-`192.168.1.0/24` and the rest of `192.168.0.0/16` is still dropped.
+`192.168.1.0/24` and the rest of `192.168.0.0/16` is still dropped. A port rule's
+[Sources]({{ '/docs/features/ports/' | relative_url }}#who-may-reach-it) are exempt
+too, for that rule's protocol and port only.
 
 ```
 # nft list chain inet easywall bogon
 ip saddr 192.168.1.0/24 return      ← allowlisted
 ip saddr 172.17.0.0/16 return       ← Docker bridge
+ip saddr 10.9.0.0/24 tcp dport 2222 return   ← a port rule's source
 ip saddr 10.0.0.0/8 drop
 ip saddr 192.168.0.0/16 drop        ← the rest of the range, still dropped
 ...

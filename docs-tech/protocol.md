@@ -46,6 +46,19 @@ first limit planned (plan P12). `TestMaxMessageBytesCarriesAFullFeed` pins both,
 `TestSendCommand_RequestLimitIsExact`,
 `TestSendCommand_ResponseLimitIsExact`, `TestDaemonHandleConn_RequestLimitIsExact`.
 
+## Connections
+
+| | Core (`handleConn`, the accept loop) |
+|---|---|
+| deadline | `requestTimeout` (5 s) to read the request — every client writes it on connect; `connTimeout` (the longest `CommandTimeout`, 35 s) to write the reply. Dispatch is under neither, so an import's `nft --check` is never cut off. `TestDaemonConnTimeout_CoversEveryClientDeadline` |
+| at once | `maxConns`, 16 served; `maxQueued`, 48 more wait for a slot; past that a connection is closed unserved. `TestDaemon_ServesAtMostMaxConnsAtOnce` |
+| root peer | the console (SO_PEERCRED uid 0) skips both caps, so the web side cannot hold `panic` in the backlog. `TestDaemon_TheConsoleIsServedWhileTheCapIsFull` |
+| at Stop | a connection waiting on its peer is closed; one in dispatch finishes and is answered. `TestDaemonStop_DoesNotWaitForAnIdleClient` |
+
+Before: no deadline and no cap — one idle client held `systemctl restart` until
+SIGKILL, and 32 clients sending 8 MiB − 1 without closing took the heap from
+4 MiB to 286 MiB.
+
 ## `UPDATE_FEED`
 
 Deadline class: long (`NftTimeout` + 5 s) — it takes the nft mutex to replace a
@@ -128,6 +141,13 @@ of `packets.log`. Fields are added, never renamed:
 The core stores `applied-config.json` in its data directory, mode 0600, atomically,
 wherever `nft.Apply` succeeds — an ordinary apply, a rollback, and the boot or
 `resume` restore. Nowhere else: a refused or failed apply put nothing in the kernel.
+
+It is also what a rollback goes back to. An apply reads it before writing the
+kernel; the rollback rebuilds the table with that snapshot, not with the live
+config, and records it again — so a rolled-back option change stays configured
+and shows as pending. The `unconfirmed` marker carries the same snapshot as JSON
+for a core that dies inside the window; an empty marker (older core, or no
+snapshot) falls back to the live config.
 
 `recorded: false` means the file is not there, which is what an installation
 upgrading to 2.10 looks like. That state is *unknown*, not *identical*:

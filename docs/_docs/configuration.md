@@ -80,15 +80,15 @@ The two-step activation safety mechanism. When a ruleset is applied, the core wa
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `enabled` | bool | `false` when absent | Two-step activation safety. The installed `easywall.toml` sets `true` |
+| `enabled` | bool | `true` | Two-step activation safety. The installed `easywall.toml` sets `true` |
 | `duration` | int | `120` | Seconds before auto-rollback if not confirmed — 10 to 3600 |
 
 Set `duration` to a value long enough for you to verify connectivity from a second terminal after applying rules.
 
-> **Absent is off, and it is the one value here that is not clamped or refused.**
-> A file naming only `duration` configures the length of a window that never
-> opens. Since 2.20.1 the daemon warns at every start when the key is off —
-> *applies take effect immediately and nothing will undo them*.
+> **A key the file omits reads as its shipped default**, so a file naming only
+> `duration` still has the window on. `enabled = false` is not clamped or refused. The
+> daemon warns at every start when it is off: *applies take effect immediately and
+> nothing will undo them*.
 
 The range is enforced, not merely suggested. Below ten seconds the window closes before
 the confirmation page can be read, so every apply rolls back and the firewall can no
@@ -138,7 +138,7 @@ install). If ulogd2 already holds `12227`, the core logs
 | Key | Type | Default | Description |
 |---|---|---|---|
 | `mode` | string | `"filter"` | What happens to IPv6: `filter` puts it through every rule, `passthrough` accepts it before any rule, `block` drops it except loopback. `block` also removes IPv6 from the container networks the forward chain is built over — what then reaches a container follows `routing.mode` (drop under `closed`/`networks` unless `routing.networks` names it, passed through under `open`) |
-| `icmp_allow_router_advertisement` | bool | `true` | Allow ICMPv6 type 134 — required for SLAAC address autoconfiguration |
+| `icmp_allow_router_advertisement` | bool | `true` | Allow ICMPv6 types 133 and 134 — required for SLAAC address autoconfiguration |
 | `icmp_allow_neighbor_advertisement` | bool | `true` | Allow ICMPv6 types 135/136 — required for Neighbor Discovery Protocol |
 
 Both ICMPv6 keys apply only under `mode = "filter"`. Under `passthrough` the traffic

@@ -101,9 +101,15 @@ func (l *loginEvents) record(p shared.LogEventPayload, now time.Time) error {
 	// Parsed and normalised here rather than trusted as written: two spellings of
 	// one IPv6 address would otherwise be two keys, and an unparseable value
 	// would be foreign text in the record.
+	//
+	// The zone is dropped. ParseAddr keeps one of any length and any bytes, so
+	// this used to pass whatever followed a % into the audit log — a
+	// 100 000-byte zone made a 100 013-byte detail, an ESC reached the file.
+	// Dropped, not refused: a link-local client's address is real, and its zone
+	// names an interface on this host, not anything about the client.
 	addr := ""
 	if a, err := netip.ParseAddr(p.Addr); err == nil {
-		addr = a.String()
+		addr = a.WithZone("").String()
 	}
 
 	if !debouncedEvents[p.Event] {
@@ -128,11 +134,19 @@ func (l *loginEvents) record(p shared.LogEventPayload, now time.Time) error {
 
 	if len(l.buckets) >= loginEventMaxAddrs {
 		o, ok := l.overflow[p.Event]
-		if !ok {
-			o = &loginEventBucket{opened: now}
-			l.overflow[p.Event] = o
+		if ok && now.Sub(o.opened) < loginEventWindow {
+			o.count++
+			return nil
 		}
-		o.count++
+		if ok {
+			l.flushOverflowLocked(p.Event, o)
+		}
+		// The overflow is one burst per event, so its first line is written now
+		// like any other burst's. It used to be counted silently until the window
+		// closed: with the table full, a new address's first failure reached the
+		// log sixty seconds or more after it happened.
+		l.overflow[p.Event] = &loginEventBucket{count: 1, opened: now}
+		l.write(string(p.Event), "", addrDetail(addr, p.Proxied), "web")
 		return nil
 	}
 
@@ -158,14 +172,23 @@ func (l *loginEvents) sweep(now time.Time) {
 		if now.Sub(b.opened) < loginEventWindow {
 			continue
 		}
-		// The count is exact; the number of distinct addresses behind it is not
-		// knowable in bounded memory, which is the whole reason for the ceiling.
-		// "More than N" is the true statement, and the volume is what the record
-		// is for.
-		l.write(string(ev), "", fmt.Sprintf("from more than %d addresses, %d within %ds",
-			loginEventMaxAddrs, b.count, int(loginEventWindow/time.Second)), "web")
+		l.flushOverflowLocked(ev, b)
 		delete(l.overflow, ev)
 	}
+}
+
+// flushOverflowLocked writes the closing summary for one event's overflow
+// bucket. l.mu must be held.
+//
+// The count is exact; the number of distinct addresses behind it is not
+// knowable in bounded memory, which is the whole reason for the ceiling. "More
+// than N" is the true statement, and the volume is what the record is for.
+func (l *loginEvents) flushOverflowLocked(ev shared.LoginEvent, b *loginEventBucket) {
+	if b.count <= 1 {
+		return // the line written when it opened is the whole story
+	}
+	l.write(string(ev), "", fmt.Sprintf("from more than %d addresses, %d more within %ds",
+		loginEventMaxAddrs, b.count-1, int(loginEventWindow/time.Second)), "web")
 }
 
 // flushLocked writes the closing summary for one bucket. l.mu must be held.

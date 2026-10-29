@@ -624,8 +624,10 @@ func TestDaemonHandleConn_RequestLimitIsExact(t *testing.T) {
 	}
 }
 
-// TestDaemonHandleConn_ReadError triggers the io.ReadAll error path by setting
-// an already-expired deadline on the connection before handleConn reads.
+// TestDaemonHandleConn_ReadError triggers the io.ReadAll error path: a client
+// that never sends its request runs into handleConn's own read deadline,
+// shortened here from requestTimeout. There used to be no such deadline,
+// and this test set one on the connection itself; handleConn now sets its own.
 func TestDaemonHandleConn_ReadError(t *testing.T) {
 	cfg := newTestConfig(t)
 	fw := newTestFirewall(t, cfg)
@@ -634,8 +636,9 @@ func TestDaemonHandleConn_ReadError(t *testing.T) {
 	server, client := net.Pipe()
 	defer server.Close()
 
-	// Set deadline to the past so any read immediately returns a timeout error
-	_ = client.SetDeadline(time.Now().Add(-time.Second))
+	saved := requestTimeout
+	requestTimeout = 200 * time.Millisecond
+	t.Cleanup(func() { requestTimeout = saved })
 
 	// handleConn must return rather than block or panic when the read fails.
 	// Without the bound below, a regression here hangs the suite instead of

@@ -104,6 +104,13 @@ func (s *Server) handleTelemetryPOST(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
+	// Before both branches. Without it a demo visitor's answer — or reset —
+	// was written to the real web.toml and outlived the restart demo.md says
+	// clears every visitor's change, deciding the next visitor's counting.
+	if s.client.IsDemo() {
+		s.respondPartialError(w, r, "/system", "demo_readonly")
+		return
+	}
 
 	// The reset button is a second submit inside the same form, so it arrives
 	// here rather than through a route of its own. It clears the stored answer;

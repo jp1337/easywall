@@ -553,7 +553,7 @@ func TestIntegration_ARefusedRollbackKeepsTheBaselines(t *testing.T) {
 		t.Fatal(err)
 	}
 	fw.nft.conn.DelTable(&nftables.Table{Name: "r2-nope", Family: nftables.TableFamilyINet})
-	fw.rollback(state, "test")
+	fw.rollback(state, shared.AppliedConfigResult{}, "test")
 	res, err := fw.usage.Read()
 	if err != nil {
 		t.Fatal(err)

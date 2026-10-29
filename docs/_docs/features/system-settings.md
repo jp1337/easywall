@@ -102,6 +102,11 @@ the socket. The paths are bound at startup, and a change to one is logged and
 ignored until a restart. A file that does not parse or does not validate is
 refused and the running configuration stays — a typo must not disarm anything.
 
+A restart does not apply anything either. A boot, `easywall-core resume` and the
+Docker reconciler enforce the configuration last applied, so an edited
+`[firewall]`, `[ipv6]`, `[docker]` or `[routing]` stays pending until an apply,
+with its acceptance window.
+
 ```toml
 [acceptance]
 enabled  = true

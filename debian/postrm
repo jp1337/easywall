@@ -1,0 +1,24 @@
+#!/bin/sh
+set -e
+
+# ── Purge removes what postinst made ─────────────────────────────────────
+#
+# postinst creates web.toml (password hash, TOTP secret, session key) and
+# easywall.toml from templates, and the directories the two processes then fill:
+# the certificate and its private key under /etc/easywall/ssl, the rules and the
+# web state under /var/lib/easywall, the audit log under /var/log/easywall. dpkg
+# knows none of it, so until 2.29.2 `apt purge` removed the two templates and
+# left every secret behind — the installation page said it removed them.
+# Debian policy 10.7.3: a file a maintainer script creates is removed on purge;
+# 10.8: log files are removed on purge, by postrm, and not on remove.
+#
+# The easywall user and group stay. Debian does not require removing a system
+# account, and one deleted here leaves anything it still owns elsewhere to the
+# next account given the same uid. postinst reuses it on a reinstall.
+if [ "$1" = purge ]; then
+  rm -rf /etc/easywall /var/lib/easywall /var/log/easywall /run/easywall
+fi
+
+#DEBHELPER#
+
+exit 0

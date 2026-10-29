@@ -79,53 +79,40 @@ func TestTheRecordedAddressIsTheResolvedClient(t *testing.T) {
 	}
 }
 
-// A trusted peer gets a real reachability verdict instead of "cannot tell".
-// Spec §3, row three: today any header at all moves the verdict to unknown,
-// which behind a proxy is every request forever.
+// Behind a trusted proxy the verdict is "cannot tell", and says why. 2.13 gave
+// it a real verdict for the client the proxy named, computed for easywall's own
+// listen port — but the client's SYN goes to the proxy's port (443 in
+// reverse-proxy.md), and a remote proxy's clients never reach this host at all.
+// Measured with webPort 19999: only 443 open said blocked/no_rule, only 19999
+// open said open/port_open to an operator the apply was cutting off at 443.
 //
-// Goes through reachVerdict itself, not a hand-rolled call to
-// shared.Reachable: the wiring inside reachVerdict — that it asks clientAddr
-// rather than the raw peer, and passes the result on unchanged — is the
-// entire substance of this task, and a test that reconstructs the function's
-// body instead of calling it proves nothing about that wiring (spec §4.4).
-func TestATrustedPeerGetsARealVerdict(t *testing.T) {
-	s := serverWithTrusted(t, "10.1.0.5")
-	r := httptest.NewRequest("GET", "/apply", nil)
-	r.RemoteAddr = "10.1.0.5:41000"
-	r.Header.Set("X-Forwarded-For", "198.51.100.1")
+// Through reachVerdict itself, not shared.Reachable: the wiring is the
+// substance. The loopback case is the one 2.13 pinned as "open/loopback": a
+// forwarded 127.0.0.1 is no more a port than any other client.
+func TestATrustedPeerGetsCannotTellNotTheWrongPort(t *testing.T) {
+	for _, tc := range []struct {
+		name, proxy, client, open string
+	}{
+		{"only the proxy's port open", "127.0.0.1", "203.0.113.5", "443"},
+		{"only easywall's own port open", "127.0.0.1", "203.0.113.5", "19999"},
+		{"a remote proxy forwarding loopback", "10.1.0.5", "127.0.0.1", "19999"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := serverWithTrusted(t, tc.proxy)
+			s.cfg.BindAddr = "127.0.0.1:19999"
+			r := httptest.NewRequest("GET", "/apply", nil)
+			r.RemoteAddr = tc.proxy + ":41000"
+			r.Header.Set("X-Forwarded-For", tc.client)
 
-	v := s.reachVerdict(r, shared.Rules{}, shared.FirewallOptions{}, shared.NetworkSettings{})
-	if v.Verdict == shared.ReachUnknown && v.Reason == shared.ReasonProxied {
-		t.Error("the verdict is still 'cannot tell' for a trusted peer")
-	}
-	if v.Addr != "198.51.100.1" {
-		t.Errorf("verdict address = %q, want the resolved client %q", v.Addr, "198.51.100.1")
-	}
-}
-
-// A trusted proxy that forwards a loopback address makes the resolved client
-// look local to reachVerdict's locality test. That is inside the documented
-// trust boundary — being on the list is total trust in that peer — and not a
-// defect: reasoning about the *proxy's* locality instead is exactly what this
-// release exists to stop. Pinned here so the next reader finds a decision,
-// not a surprise.
-//
-// Through reachVerdict itself, for the same reason as the test above: the
-// point being pinned is that the *resolved* address reaches shared.Reachable,
-// not the peer, and only a call to reachVerdict exercises that routing.
-func TestATrustedProxyCanMakeARemoteCallerLookLocal(t *testing.T) {
-	s := serverWithTrusted(t, "10.1.0.5")
-	r := httptest.NewRequest("GET", "/apply", nil)
-	r.RemoteAddr = "10.1.0.5:41000"
-	r.Header.Set("X-Forwarded-For", "127.0.0.1")
-
-	v := s.reachVerdict(r, shared.Rules{}, shared.FirewallOptions{}, shared.NetworkSettings{})
-	if v.Addr != "127.0.0.1" {
-		t.Fatalf("verdict address = %q, want the resolved (loopback) client %q", v.Addr, "127.0.0.1")
-	}
-	if v.Verdict != shared.ReachOpen || v.Reason != shared.ReasonLoopback {
-		t.Errorf("verdict = %s/%s, want %s/%s — a trusted proxy's forwarded loopback address "+
-			"made the resolved client look local, which is inside the trust boundary, not a defect",
-			v.Verdict, v.Reason, shared.ReachOpen, shared.ReasonLoopback)
+			v := s.reachVerdict(r, shared.Rules{TCP: []shared.PortRule{{Port: tc.open}}},
+				shared.FirewallOptions{}, shared.NetworkSettings{})
+			if v.Verdict != shared.ReachUnknown || v.Reason != shared.ReasonTrustedProxy {
+				t.Errorf("verdict = %s/%s for port %s, want %s/%s — the port the client reaches is the proxy's",
+					v.Verdict, v.Reason, v.Port, shared.ReachUnknown, shared.ReasonTrustedProxy)
+			}
+			if v.Addr != tc.client {
+				t.Errorf("verdict address = %q, want the resolved client %q", v.Addr, tc.client)
+			}
+		})
 	}
 }
