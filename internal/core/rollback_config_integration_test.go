@@ -140,3 +140,25 @@ func inputChain(t *testing.T) string {
 	}
 	return string(out)
 }
+
+// A restart enforces what was applied, not what was saved since. Saving
+// ipv6.mode=block from /options and never applying it used to put
+// `meta nfproto ipv6 drop` into the kernel at the next boot or resume — with
+// no acceptance window, because nobody had asked for an apply. The saved value
+// stays configured and shows as pending, like a staged rule edit.
+func TestIntegration_ARestartEnforcesTheAppliedOptionsNotTheSavedOnes(t *testing.T) {
+	fw := newTestFirewallWithRealNft(t)
+	cfg := fw.cfg
+
+	confirmedIPv6Filter(t, fw)
+	blockIPv6(t, cfg) // saved, never applied
+
+	restarted, err := NewFirewall(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := restarted.RestoreCurrent(RestoreReasonBoot); err != nil {
+		t.Fatalf("boot restore: %v", err)
+	}
+	assertIPv6Filtered(t, restarted, "after a restart with an unapplied option")
+}

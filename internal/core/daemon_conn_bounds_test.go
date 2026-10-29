@@ -70,6 +70,10 @@ func TestDaemon_ServesAtMostMaxConnsAtOnce(t *testing.T) {
 	cfg.Usage.Interval = &off
 	fw := newTestFirewall(t, cfg)
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+	// Under sudo or unshare every peer is root, and root skips the cap.
+	saved := isConsolePeer
+	isConsolePeer = func(net.Conn) bool { return false }
+	t.Cleanup(func() { isConsolePeer = saved })
 	startTestDaemon(t, d)
 
 	var held []net.Conn

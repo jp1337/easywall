@@ -44,7 +44,12 @@ func readAppliedConfig(path string) (shared.AppliedConfigResult, error) {
 // parseAppliedConfig decodes a snapshot readAppliedConfig or the unconfirmed
 // marker holds.
 func parseAppliedConfig(data []byte) (shared.AppliedConfig, error) {
-	var cfg shared.AppliedConfig
+	// Over the shipped defaults: a snapshot written before an option existed
+	// has no field for it, and since a restore enforces this record, zero would
+	// switch the option off at the next boot — the LoadConfig trap again.
+	d := shared.CoreDefault()
+	cfg := shared.AppliedConfig{Firewall: d.Firewall,
+		Network: shared.NetworkSettings{IPv6: d.IPv6, Docker: d.Docker, Routing: d.Routing}}
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return shared.AppliedConfig{}, fmt.Errorf("parse applied config: %w", err)
 	}

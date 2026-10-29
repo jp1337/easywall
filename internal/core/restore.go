@@ -187,6 +187,15 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 		// inside the window kept ipv6.mode=block live after reverting the rules.
 		// See configToRestore.
 		opts, nets = f.configToRestore(before)
+	} else if applied := f.appliedConfig(); applied.Recorded {
+		// What was applied, not what was saved since. A restore is a boot, a
+		// RESUME or the Docker reconciler — none of them an apply, and none with
+		// an acceptance window — yet it used to read f.cfg, so an option saved
+		// on /options and never applied went live at the next one. The saved
+		// value stays configured and /apply shows it as pending, like a staged
+		// rule edit. An installation with no record yet keeps f.cfg: there is
+		// nothing else to enforce.
+		opts, nets = applied.Config.Firewall, applied.Config.Network
 	}
 	if err := f.nft.ApplyWithFeeds(state, opts, nets, f.feedContents(state.Current)); err != nil {
 		// Recorded, not just returned. This is the line an operator needs when
