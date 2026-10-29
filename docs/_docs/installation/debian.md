@@ -106,9 +106,11 @@ is `root:root 0600` by default.
 ## Removing it
 
 ```bash
-sudo apt remove easywall          # keeps /etc/easywall and the rules
-sudo apt purge  easywall          # removes them too
+sudo apt remove easywall          # keeps /etc/easywall, the rules and the audit log
+sudo apt purge  easywall          # removes /etc/easywall, /var/lib/easywall, /var/log/easywall
 ```
+
+The `easywall` system user and group stay after a purge.
 
 Purging does **not** flush the rules from the kernel. Do that first if you want the
 host open again:

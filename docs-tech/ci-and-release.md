@@ -10,7 +10,7 @@ wrote, all behind green ticks.
 | `test.yml` | push to `main`/`develop`, every PR | unit tests with `-race`, an integration suite against a real kernel, that the committed assets match their sources, and that the interface works in a browser |
 | `build.yml` | push, every PR | both binaries cross-compile, the image builds, and the `.deb` **installs, starts and answers** on both architectures |
 | `security.yml` | push to `main`, every PR, Mondays 08:00 UTC | CodeQL, `govulncheck`, `gosec` |
-| `docs.yml` | changes under `docs/` | the site builds (PR) and deploys to Pages (main) |
+| `docs.yml` | changes under `docs/`, `scripts/`, `package*.json` and a few more (its `paths:`) | the site builds (PR) and deploys to Pages (main) |
 | `publish-edge.yml` | push to `main` | multi-arch image to three registries as `:edge` and `:sha-…` |
 | `release.yml` | a `v*.*.*` tag | GoReleaser, then one `.deb` per architecture uploaded as a release asset, then one Discord embed |
 | `ai-disclosure.yml` | an issue or pull request opened or edited | nothing about the code: it labels `ai-generated` a description that begins with the disclosure `AGENTS.md` asks for. `pull_request_target`, so it checks nothing out and reads the text only from `env`. Catches only bots that read the repository |
@@ -31,7 +31,7 @@ optimising; cost is not.
 | Job | Note |
 |---|---|
 | `test` | `./cmd/...` and `./internal/...` with `-race` — `./internal/...` alone, until 2.25.1, left the 32 console-subcommand tests in `cmd/easywall-core` running nowhere (`TestEveryTestedPackageIsInTheUnitTestRuns`). Coverage uploaded to Codecov. The profile is checked non-empty by a step that *can* fail, because the upload step cannot (`continue-on-error`) |
-| `test-integration` | `sudo go test -tags integration` over `./internal/core/...` and, since 2.13, `./internal/web/...` — `-timeout 300s` for both packages together. Namespaced via `CLONE_NEWNET` in `TestMain`; the only place `nftables.go`'s rule builders execute (without this job they measure 0%) and the only place the trusted-proxy resolution sees a kernel-assigned peer rather than one a test wrote into a struct |
+| `test-integration` | `sudo go test -tags integration` over `./internal/core/...` and, since 2.13, `./internal/web/...` — `-timeout 480s` for both packages together. Namespaced via `CLONE_NEWNET` in `TestMain`; the only place `nftables.go`'s rule builders execute (without this job they measure 0%) and the only place the trusted-proxy resolution sees a kernel-assigned peer rather than one a test wrote into a struct |
 | `assets` | rebuilds both stylesheets and diffs them, runs `check:diagrams`, re-copies `htmx.min.js` from `node_modules` and rebuilds `web/static/flags` (`build:flags`), and diffs both. Four committed artefacts, four freshness checks |
 | `ui` | Playwright against demo mode. Catches what no Go assertion can: the forwarding editor storing `1E+04` as port 1, a console error, a sideways scroll, in both themes |
 | `lint` | `golangci-lint` |
@@ -190,6 +190,7 @@ finding nothing is the engine behaving as built, not a bug to fix.
 
 ```
 tag v*.*.*
+   ├── main-is-green, tag-matches-the-tree ──► nothing is published unless both pass
    ├── goreleaser ──► tarballs (amd64, arm64), checksums, images :latest/:vX.Y.Z
    ├── debian ──────► easywall_amd64.deb   (native amd64 runner)
    │                  easywall_arm64.deb   (native arm64 runner)
@@ -202,6 +203,11 @@ units, logrotate — and `build.yml` installs *that* package on every pull reque
 second definition in `.goreleaser.yaml` would be a second thing to keep in step,
 and the release would ship the copy nobody tests. Two definitions of one artefact
 is how a package comes to contain no binaries.
+
+`tag-matches-the-tree` compares the tag with `debian/changelog`, `version.go` and
+the newest `CHANGELOG.md` heading **before** GoReleaser runs. The Debian legs made
+that comparison alone, after the release and `:latest` were out, so a mismatch
+published a release with no `.deb` and the download URL below answered 404.
 
 Before uploading, each leg checks that the artefact contains both binaries, that
 its version matches the tag, and that its architecture and ELF type match the leg
@@ -269,7 +275,7 @@ Set 2026-09-01, after a red `Test` run reached `main` and nothing stopped it.
 | Required reviews | none; this is a one-maintainer repository and a self-approval is theatre |
 
 ```
-Test (ubuntu-24.04)     Lint     Integration tests (nftables / CAP_NET_ADMIN)
+Test (ubuntu-24.04)     Lint     Integration tests (nftables / CAP_NET_ADMIN, ACME / Pebble)
 Generated assets are current     Interface in a browser
 CodeQL     gosec     govulncheck
 Binaries (linux/amd64)     Binaries (linux/arm64)

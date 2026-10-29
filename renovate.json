@@ -50,10 +50,21 @@
     {
       "customType": "regex",
       "description": "The exact Pagefind version the documentation search index is built with, in .github/actions/build-search-index/action.yml. It was `pagefind@1`, and no manager watched a floating range: the index published to easywall-project.org was built by whatever 1.x npm resolved that morning, with no pull request to review and no version recorded anywhere to bisect. The index format is not the risk — the loader in docs/_layouts/default.html reads the bundle's JS API, and that is what a minor release can reshape: the window.PagefindUI global, five option names, and pagefind-highlight.js being an ES module, which already broke highlighting silently on this branch. The action's own assertion counts index fragments against the page count and would still pass, so a bundle whose UI no longer mounts ships with CI green. Versioning is the npm default here, unlike the Go pins above: this pin carries all three components, so it is a valid semver version and needs no `docker` workaround.",
-      "managerFilePatterns": ["/^\\.github/actions/build-search-index/action\\.yml$/"],
+      "managerFilePatterns": [
+        "/^\\.github/actions/build-search-index/action\\.yml$/",
+        "/^scripts/docs-build\\.sh$/"
+      ],
       "matchStrings": ["npx --yes pagefind@(?<currentValue>\\d+\\.\\d+\\.\\d+)"],
       "datasourceTemplate": "npm",
       "depNameTemplate": "pagefind"
+    },
+    {
+      "customType": "regex",
+      "description": "The Ruby image scripts/docs-build.sh builds the documentation in locally. It has to be the ruby-version docs.yml's setup-ruby pins — there is no Gemfile.lock, so that version is all that holds the local site and the published one together — and only docs.yml was being moved: the github-actions manager reads setup-ruby's input and nothing reads a shell script. Same datasource and depName as that manager, so the group rule below puts both in one pull request.",
+      "managerFilePatterns": ["/^scripts/docs-build\\.sh$/"],
+      "matchStrings": ["docker\\.io/library/ruby:(?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+      "datasourceTemplate": "ruby-version",
+      "depNameTemplate": "ruby"
     },
     {
       "customType": "regex",
@@ -154,6 +165,13 @@
       "prBodyNotes": [
         "Check after merging that the search still mounts and still highlights: the index format is not what this risks, the `window.PagefindUI` global, its five option names and the ES-module form of `pagefind-highlight.js` are."
       ]
+    },
+    {
+      "description": "Ruby is pinned in docs.yml (setup-ruby, read by the github-actions manager) and in scripts/docs-build.sh (the customManager above). One pull request moves both, or the local documentation build and the published one run different Rubies.",
+      "matchDatasources": ["ruby-version"],
+      "matchPackageNames": ["ruby"],
+      "groupName": "Ruby",
+      "semanticCommitScope": "docs"
     },
     {
       "description": "mermaid renders the committed diagrams and its version is folded into their digest, so an upgrade makes every SVG stale by design — see scripts/render-diagrams.mjs.",

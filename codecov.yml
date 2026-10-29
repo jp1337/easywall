@@ -33,14 +33,15 @@ flag_management:
   default_rules:
     carryforward: true
 
+# No `paths:` on either flag. A flag's paths are a filter on what it counts, and
+# they said internal/ for unit and internal/core/ for integration: the unit run's
+# cmd/ and the integration run's internal/web (the ACME round trip) were uploaded
+# and dropped, and no report showed a file under cmd/. Each flag counts what its
+# job uploads; the job's `go test` package list is the one place that decides it.
 flags:
   unit:
-    paths:
-      - internal/
     carryforward: true
   integration:
-    paths:
-      - internal/core/
     carryforward: true
 
 comment:

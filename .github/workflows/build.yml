@@ -673,6 +673,10 @@ jobs:
           # reads there. The web keeps its state in its own web/ (2.22).
           check /var/lib/easywall        root:easywall     750
           check /var/lib/easywall/web    easywall:easywall 700
+          check /var/log/easywall        root:easywall     750
+          # postinst makes it, and the core unit's RuntimeDirectory= recreates it
+          # at every start with the same owner and mode; the core is running here.
+          check /run/easywall            root:easywall     750
           # The three units, by installed path. A unit file that nothing
           # installs is a unit that does not exist on the machine, which is the
           # class of mistake that shipped this package with no binaries at all
@@ -947,6 +951,26 @@ jobs:
           up easywall-core || fail "easywall-core did not come back after the upgrade"
           echo "ok  an upgrade kept a disabled easywall-web disabled and the core came back"
           systemctl enable --now easywall-web.service 2>/dev/null
+          EOF
+
+      # Last, because it uninstalls the package. Until 2.29.2 debian/ had no
+      # postrm of its own, and `apt purge` left web.toml — password hash, TOTP
+      # secret, session key — the TLS key, the rules and the audit log behind,
+      # while the installation page said purge removed them.
+      - name: Remove keeps the configuration, purge removes it
+        run: |
+          docker exec -i easywall-test bash -s <<'EOF'
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          state=(/etc/easywall/web.toml /etc/easywall/easywall.toml /var/lib/easywall/rules.json /var/log/easywall)
+          apt-get remove -y easywall >/dev/null 2>&1 || fail "apt-get remove failed"
+          for p in "${state[@]}"; do [ -e "$p" ] || fail "$p is gone after a plain remove; remove must keep it"; done
+          echo "ok  remove kept the configuration, the rules and the log"
+          apt-get purge -y easywall >/dev/null 2>&1 || fail "apt-get purge failed"
+          for p in /etc/easywall /var/lib/easywall /var/log/easywall /run/easywall; do
+            [ ! -e "$p" ] || { find "$p"; fail "$p is still there after purge"; }
+          done
+          echo "ok  purge removed /etc/easywall, /var/lib/easywall, /var/log/easywall and /run/easywall"
           EOF
 
       - name: Stop the container

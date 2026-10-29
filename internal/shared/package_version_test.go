@@ -19,10 +19,10 @@ import (
 // contents disagree with its metadata — and `apt upgrade` offers nothing,
 // because the version it compares has not moved.
 //
-// The release workflow does compare the two, but only at the upload step:
-// GoReleaser has by then published the images, the archives and the GitHub
-// release, so the failure arrives after most of the release has happened and
-// leaves it half done. This is the same check, at the moment it is cheap.
+// release.yml compares the tag with this file in tag-matches-the-tree, before
+// GoReleaser publishes anything; until 2.29.2 only the upload step did, after
+// the images, the archives and the GitHub release were out. This holds the two
+// together on every pull request, at the moment it is cheap.
 func TestThePackageVersionIsTheReleaseVersion(t *testing.T) {
 	path := filepath.Join(repoRoot(t), "debian", "changelog")
 	data, err := os.ReadFile(path)

@@ -18,17 +18,20 @@ cd "$(dirname "$0")/.."
 # The exact version .github/workflows/docs.yml pins ruby-version to, in both
 # its build and deploy jobs. There is no docs/Gemfile.lock, so gems resolve
 # fresh on every run — this version is the only thing holding the local stack
-# and the CI stack together. Change it there, change it here, in the same commit.
+# and the CI stack together. Renovate moves both in one pull request (its
+# `ruby` customManager and group), and TestTheDocsBuildScriptPinsWhatCIPins
+# fails if they part — a Renovate bump once moved docs.yml alone.
 podman run --rm \
   -v "$PWD/docs:/srv:Z" \
   -v easywall-docs-gems:/usr/local/bundle \
   -w /srv \
-  docker.io/library/ruby:4.0.6 \
+  docker.io/library/ruby:4.0.9 \
   sh -c 'bundle install --quiet && JEKYLL_ENV=production bundle exec jekyll build'
 
 # The exact version .github/actions/build-search-index pins, with the exact same
 # three flags. A floating range, or one flag out of step, means the index these
-# checks run against is not the index easywall-project.org serves.
+# checks run against is not the index easywall-project.org serves. Renovate's
+# pagefind customManager reads this line as well as the action's.
 npx --yes pagefind@1.5.2 --site docs/_site \
   --glob "docs/**/*.html" \
   --root-selector "main.content" \
