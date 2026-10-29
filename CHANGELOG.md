@@ -9,6 +9,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **What an audit turned up.**
 
+### Security
+
+- **A rollback now undoes an option or network change, not only the rules.**
+  Confirm `ipv6.mode = "filter"`, apply `block`, let the window close: the old
+  rules came back, but the kernel still held `meta nfproto ipv6 drop` under a
+  status reading *rolled back*, and `/apply` said nothing was pending. A restart
+  inside the window did the same. Saving an option rewrites the live
+  configuration, and the rollback rebuilt the table from it. An apply now keeps
+  the configuration in force before it, in memory and in the `unconfirmed`
+  marker; the change stays configured and shows as pending.
+- **The blocklist, the feeds and the countries refuse forwarded traffic too.**
+  They were written into the input chain only, so a blocklisted client, or one
+  in a feed or country you switched on, still reached a container on any port
+  with a forwarded rule. Measured in a network namespace: connected before,
+  refused after. The forward chain now checks the same sets, in the same order,
+  before every forwarded port rule; container networks are exempt, and the
+  allowlist exempts from the feeds without opening anything.
+- **Port forwarding no longer captures traffic the host only routes.** A client
+  dialling another machine's port 80 through this host was answered by its
+  forwarded 8080: the redirect matched the port alone. It now matches only
+  packets addressed to this host (`fib daddr type local`), as the forwarding page
+  always said.
+- **The second-factor budget holds against parallel requests.** Codes sent
+  concurrently on one frozen intermediate cookie got 5–9 checks against a budget
+  of 3 in process, 3–4 over HTTP/2: the count was read before the check and
+  booked after it. An attempt is now reserved atomically first, for codes and
+  passkeys alike.
+- **A recovery code works once, also when two are entered at the same time.**
+  Two codes used concurrently were both accepted and one of them worked again
+  afterwards (7 stored instead of 6); the same code twice opened two sessions.
+  The matching hash is now removed under the configuration lock.
+- **Signing out ends a session that still has a request in flight.** A page
+  still loading at logout re-signed the session cookie with an age of zero, and
+  it worked again once the revocation record expired ten minutes later. The
+  session store now strips a revoked session's identity at every save.
+- **The web process can no longer keep `easywall-core panic` from being heard.**
+  The core read its socket with no deadline and no cap: one idle client held
+  `systemctl restart` until SIGKILL, and 32 clients sending 8 MiB each took the
+  heap from 4 to 286 MiB. Connections are now bounded (16 served, 48 waiting),
+  a request must arrive within 5 s, and a root peer — the console — skips the
+  queue.
+- **A login event can no longer write free text into the audit log.** An IPv6
+  zone survived the core's address parsing: `fe80::1%` followed by 100 000
+  characters made a 100 013-byte entry, and an escape sequence reached the file.
+  The zone is dropped.
+- **An `audit.log` from before 2.5.0 is no longer readable by the web user.**
+  The 0600 mode applied only when the file was created, so where no logrotate
+  recreates it — the container image — it stayed 0640 `root:easywall`. The core
+  tightens it at start.
+- **`apt purge easywall` removes the secrets.** It left `/etc/easywall`
+  (password hash, TOTP secret, session key, TLS key), the rules and the logs
+  behind, while the Debian guide said purge removes them. The easywall user and
+  group stay.
+
 ### Fixed
 
 - **A development build no longer shows a false "update available" banner.** A
@@ -27,6 +81,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   was silently ignored, and the daemon that started instead restored the rules
   and took over the running core's socket. Anything left over after the flags is
   now refused with the order that works.
+- **The bogon filter no longer closes a port to the private network you opened
+  it to.** A port open only to `10.9.0.0/24` stopped answering that network when
+  the filter was switched on. A port rule's sources are now exempt, for that
+  rule's protocol and port only.
+- **Behind a trusted proxy, the apply screen no longer guesses at your port.** It
+  tested easywall's own listen port while the browser reaches the proxy's —
+  with only 443 open it said "blocks", with only the listen port open it said
+  "reachable" to an operator being cut off. It now says it cannot tell.
+- **A failed-login attack from one IPv6 /64 notifies.** Each address had its own
+  count while the login limiter counts the /64: 20 failures from 20 addresses,
+  0 notifications. The notification now counts as the limiter does.
+- **In the demo, a visitor's telemetry answer no longer reaches `web.toml`.** It
+  was written to the real file and survived the restart that clears every other
+  change. A test now posts to every route in demo mode and compares the file.
+- **The first failed login from a new address is logged at once when the table
+  is full.** Past 1024 addresses it waited for the 60 s window to close.
+- **An unreadable panic marker is one journal line, not one per status poll.**
+- **Docker's native nftables backend is read.** The published-port warning looked
+  for table `docker`; Docker writes `ip docker-bridges`, so it never warned.
+- **A signed-out cookie no longer writes logout lines to the audit log.**
+  Replayed 300 times, it wrote 301.
+- **A wrong code on a passkey-only account is just a wrong code.** It logged an
+  ERROR advising to delete `passkeys.json` — the account's only factor.
+- **The old `/blacklist` and `/whitelist` addresses accept a 2 MiB list**, as
+  `/blocklist` and `/allowlist` do; they kept the 64 KiB site limit.
+- **The package depends on `ca-certificates`.** Installed with
+  `--no-install-recommends` it had no CA bundle, and every HTTPS request failed.
+- **A release whose tag disagrees with `debian/changelog`, `version.go` or this
+  file stops before anything is published.** It published the release and
+  `:latest`, then failed the `.deb`, leaving the download link a 404.
 - **The audit log can no longer fill the disk where logrotate is absent.** The
   packaged install rotates it; the container image ships no logrotate, so the
   privileged core appended to one file for ever. It now rewrites itself down to
@@ -35,13 +119,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A restart enforces what was applied, not what was saved since.** A boot,
+  `easywall-core resume` and the Docker reconciler rebuilt the table from the
+  configuration file, so an option saved on `/options` and never applied went
+  live at the next restart, with no acceptance window. They now enforce the
+  last applied configuration; an edited `easywall.toml` stays pending until an
+  apply. **A host managed by editing the file and restarting needs an apply
+  now.**
 - **A key missing from `easywall.toml` is its shipped default, for every key.**
   Only the numeric limits, `icmp_allow_echo_request` and `acceptance.duration`
   were filled in; every other absent switch read as off. A hand-written or
-  templated file without `acceptance.enabled` ran with no rollback window,
-  without `docker.enabled` cut containers off, and without the ICMPv6 keys broke
-  IPv6 — while the schema and `configuration.md` said each defaults to on. The
+  templated file without `docker.enabled` cut containers off, and without the
+  ICMPv6 keys broke IPv6, while the schema said each defaults to on. Without
+  `acceptance.enabled` there was no rollback window; absent, it is now on. The
   file the package installs names every key, so a packaged host sees no change.
+- **An invisible character is not the symbol a password needs.** A zero-width
+  space, soft hyphen or combining accent counted as the symbol and toward the
+  twelve characters; a symbol is now punctuation, a symbol or a space.
 - **A `notify_kind` outside `webhook`, `ntfy` or empty is refused at startup.**
   Hand-written into `web.toml`, an unknown value reached the notifier, where
   anything but `ntfy` was posted to `notify_url` as a webhook. The schema and the
@@ -52,6 +146,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `update_check` schema description names `api.github.com`, the host the check
   contacts — it said `github.com`. The distinction matters for an egress
   allowlist.
+- README, landing page and SECURITY no longer say easywall never runs `nft`;
+  custom rules and their syntax check do.
+- `easywall-core(1)` documents `health` and `selftest`, the real exit codes,
+  `[usage]` on `SIGHUP` and the subcommand-first syntax.
+- The manual install creates the configuration once, with `--write-config`, and
+  names Node.js and `npm ci`, which `make build` needs.
+- `icmp_allow_router_advertisement` allows ICMPv6 types 133 and 134;
+  `EASYWALL_WEB_LANGUAGE` accepts every shipped locale; `GET/SAVE_SETTINGS`
+  carry routing too.
+- The README coverage badge reads `main`, not Codecov's stale default branch
+  (68 % → 90 %); Codecov now counts `cmd/` and the integration suite's
+  `internal/web`.
 
 ## [2.29.1] — 2026-10-25
 

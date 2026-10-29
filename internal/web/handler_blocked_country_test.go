@@ -173,7 +173,7 @@ func TestBlocked_TheLiveTailsNewRowsCarryTheCountry(t *testing.T) {
 }
 
 // Spec D6: no Block button for a country already staged, nor for a forwarded
-// packet — the countries filter the input chain only — nor when the staged
+// packet — no action is offered on one — nor when the staged
 // rules cannot be read. The cell stays.
 func TestBlocked_OffersBlockOnlyWhereItWouldDoSomething(t *testing.T) {
 	for name, tc := range map[string]struct {
