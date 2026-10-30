@@ -1,3 +1,12 @@
+easywall (2.29.2) unstable; urgency=medium
+
+  * What an audit turned up: a rollback undoes option and network changes,
+    blocklist, feeds and countries refuse forwarded traffic, port forwarding
+    matches only local destinations, 2FA budgets hold under parallel requests.
+  * Image rebuilt on Python 3.14.10 (CVE-2026-115557).
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Fri, 30 Oct 2026 10:00:00 +0100
+
 easywall (2.29.1) unstable; urgency=medium
 
   * Built with Go 1.27.3: crypto/x509 distrusts compromised intermediate

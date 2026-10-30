@@ -16,7 +16,7 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <nav class="changelog-versions" aria-label="Versions">
-  <a href="#Unreleased">Unreleased</a>
+  <a href="#2.29.2">2.29.2</a>
   <a href="#2.29.1">2.29.1</a>
   <a href="#2.29.0">2.29.0</a>
   <a href="#2.28.0">2.28.0</a>
@@ -87,11 +87,17 @@ which is the file GitHub and the release tooling read.
   addEventListener('hashchange', openTarget);
 </script>
 
-<details open id="Unreleased" markdown="1">
-<summary><strong>Unreleased</strong> — What an audit turned up</summary>
+<details open id="2.29.2" markdown="1">
+<summary><strong>2.29.2</strong> · 2026-10-30 — What an audit turned up</summary>
 
 ### Security
 
+- **The image carries Python 3.14.10** (Alpine `python3` 3.14.10-r0, was
+  3.14.8-r0), whose `ssl` module distrusts compromised certificates
+  (CVE-2026-115557, critical). Python is in the image only because
+  `supervisord` is written in it, and supervisord opens no TLS connection;
+  easywall's own HTTPS requests go through Go's `crypto/x509`. A rebuild picks
+  the fix up, so 2.29.1 images stay flagged until replaced.
 - **A rollback now undoes an option or network change, not only the rules.**
   Confirm `ipv6.mode = "filter"`, apply `block`, let the window close: the old
   rules came back, but the kernel still held `meta nfproto ipv6 drop` under a
@@ -240,7 +246,7 @@ which is the file GitHub and the release tooling read.
   (68 % → 90 %); Codecov now counts `cmd/` and the integration suite's
   `internal/web`.
 
-[See everything changed since the last release](https://github.com/jp1337/easywall/compare/v2.29.1...HEAD)
+[See the code changes between 2.29.1 and 2.29.2](https://github.com/jp1337/easywall/compare/v2.29.1...v2.29.2)
 
 </details>
 
