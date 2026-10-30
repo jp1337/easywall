@@ -5,12 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.29.2] — 2026-10-30
 
 **What an audit turned up.**
 
 ### Security
 
+- **The image carries Python 3.14.10** (Alpine `python3` 3.14.10-r0, was
+  3.14.8-r0), whose `ssl` module distrusts compromised certificates
+  (CVE-2026-115557, critical). Python is in the image only because
+  `supervisord` is written in it, and supervisord opens no TLS connection;
+  easywall's own HTTPS requests go through Go's `crypto/x509`. A rebuild picks
+  the fix up, so 2.29.1 images stay flagged until replaced.
 - **A rollback now undoes an option or network change, not only the rules.**
   Confirm `ipv6.mode = "filter"`, apply `block`, let the window close: the old
   rules came back, but the kernel still held `meta nfproto ipv6 drop` under a
@@ -3153,7 +3159,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[Unreleased]: https://github.com/jp1337/easywall/compare/v2.29.1...HEAD
+[Unreleased]: https://github.com/jp1337/easywall/compare/v2.29.2...HEAD
+[2.29.2]: https://github.com/jp1337/easywall/compare/v2.29.1...v2.29.2
 [2.29.1]: https://github.com/jp1337/easywall/compare/v2.29.0...v2.29.1
 [2.29.0]: https://github.com/jp1337/easywall/compare/v2.28.0...v2.29.0
 [2.28.0]: https://github.com/jp1337/easywall/compare/v2.27.1...v2.28.0
