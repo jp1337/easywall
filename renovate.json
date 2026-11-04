@@ -12,7 +12,7 @@
   "labels": ["renovate", "dependencies"],
   "reviewers": ["jp1337"],
   "platformAutomerge": true,
-  "rebaseWhen": "behind-base-branch",
+  "rebaseWhen": "conflicted",
   "postUpdateOptions": ["gomodTidy"],
 
   "customManagers": [

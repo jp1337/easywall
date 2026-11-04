@@ -44,6 +44,7 @@ flags:
   integration:
     carryforward: true
 
-comment:
-  layout: "reach, diff, flags, files"
-  require_changes: true
+# No pull request comment: the coverage status checks above already gate
+# every pull request, and the comment doubled the notification mail for each
+# one, Renovate's included (2026-11-04).
+comment: false
