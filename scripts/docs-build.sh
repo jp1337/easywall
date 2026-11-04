@@ -32,7 +32,7 @@ podman run --rm \
 # three flags. A floating range, or one flag out of step, means the index these
 # checks run against is not the index easywall-project.org serves. Renovate's
 # pagefind customManager reads this line as well as the action's.
-npx --yes pagefind@1.5.2 --site docs/_site \
+npx --yes pagefind@1.6.0 --site docs/_site \
   --glob "docs/**/*.html" \
   --root-selector "main.content" \
   --force-language en
