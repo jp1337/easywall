@@ -21,7 +21,7 @@ require (
 	github.com/google/nftables v0.3.0
 	github.com/gorilla/sessions v1.4.0
 	github.com/mdlayher/netlink v1.11.2
-	github.com/nicksnyder/go-i18n/v2 v2.6.1
+	github.com/nicksnyder/go-i18n/v2 v2.7.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/text v0.43.0
